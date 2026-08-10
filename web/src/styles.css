@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base { body { @apply m-0 bg-slate-950 font-sans antialiased; } button:disabled { @apply cursor-not-allowed opacity-50; } }
+@layer components {
+  .button { @apply rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-200 transition hover:bg-slate-700; }
+  .button-primary { @apply border-cyan-500 bg-cyan-500 text-slate-950 hover:bg-cyan-400; }
+  .button-danger { @apply border-red-900 bg-transparent text-red-300 hover:bg-red-950; }
+  .label { @apply mt-4 block text-sm font-medium text-slate-300; }
+  .label input, .label textarea { @apply mt-1.5 block w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 font-normal text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400; }
+  th, td { @apply px-4 py-4 align-middle; }
+  .badge { @apply inline-flex rounded-full px-2 py-1 text-xs font-medium capitalize; }
+}
