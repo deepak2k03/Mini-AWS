@@ -2,7 +2,7 @@
 
 ## 1. Objective
 
-Build a lightweight, local cloud-instance management system that lets authenticated users launch, view, start, stop, restart, and delete isolated SSH-enabled Docker containers. The system automates instance provisioning, securely associates each instance with its owner's SSH public key, and tracks the complete instance lifecycle from creation to deletion.
+Build a lightweight, local cloud-instance management system that lets authenticated users launch, view, start, stop, restart, and delete isolated SSH-enabled Docker containers. The system automates instance provisioning, securely associates each instance with its owner's SSH public key, tracks the complete instance lifecycle from creation to deletion, and provides an optional Gemini-powered operations assistant. Each newly created instance also joins a shared private Docker bridge network, similar to a simplified EC2 VPC.
 
 ## 2. Technical Stack
 
@@ -10,7 +10,8 @@ Build a lightweight, local cloud-instance management system that lets authentica
 - **Backend:** Node.js, Express 5, Mongoose, Zod.
 - **Database:** MongoDB 8.
 - **Container runtime:** Docker Engine, controlled through Dockerode.
-- **Instance image:** Alpine Linux 3.21, OpenSSH server, Tini.
+- **Instance image:** Alpine Linux 3.21, OpenSSH server, Tini, and `iputils` for private-network diagnostics.
+- **AI operations:** Google Gemini API, called only from the server with a server-side API key.
 - **Security middleware:** Helmet, CORS, express-rate-limit, Pino HTTP logging.
 - **Credential storage:** Local server directory for short-lived public-key files (`instance-keys`).
 
@@ -23,15 +24,19 @@ flowchart LR
   A -->|Mongoose: instance metadata| M[(MongoDB<br/>Port 27017)]
   A -->|Dockerode via Docker socket| D[Docker Engine]
   A -->|Writes public-key file| K[Local key directory]
-  D -->|Read-only bind mount| I[SSH instance container<br/>Alpine + OpenSSH]
+  D --> N[mini-aws-network<br/>Docker bridge + DNS]
+  N --> I[SSH instance container<br/>Alpine + OpenSSH]
+  N --> J[Other instance containers]
+  A -->|Read-only bind mounts| I
   U[User SSH client] -->|SSH: host + allocated TCP port| I
 ```
 
 1. A user enters an instance name and SSH public key in the React dashboard.
 2. The frontend sends `POST /api/instances` through the Vite proxy.
 3. The API validates the request, creates an initial MongoDB record with state `creating`, and saves the supplied public key in a restricted local file.
-4. The API creates a Docker container with the key mounted read-only, starts it, and waits for Docker to allocate an SSH host port.
-5. The API updates the instance record to `running` and returns the SSH connection information to the dashboard.
+4. The API creates or reuses `mini-aws-network`, rejects duplicate active names, and creates a container with its hostname and Docker DNS alias set to the instance name.
+5. The API mounts the external public key and a platform-managed internal SSH credential read-only, starts the container, and waits for Docker to allocate an SSH host port.
+6. The API records the private Docker IP and returns both private-network and existing external-SSH information to the dashboard.
 6. The user can later perform lifecycle actions or delete the instance. Deletion removes the Docker container and associated key file, then marks the database record `deleted`.
 
 ## 4. Detailed Design
@@ -47,6 +52,9 @@ The `instances` collection stores the desired state, ownership, Docker reference
 | `name` | String (max 64) | User-provided instance name. |
 | `dockerId` | String, unique/indexed | Docker container identifier. |
 | `image` | String | Versioned Docker image used to create the instance. |
+| `hostname` | String | Docker hostname and private-network DNS alias; equal to the instance name. |
+| `privateIP` | String | IPv4 address assigned on the private Docker bridge network. |
+| `networkName` | String | Docker network name, normally `mini-aws-network`. |
 | `state` | Enum | `creating`, `running`, `stopped`, `deleting`, `deleted`, or `error`. |
 | `ssh.host` | String | Public host name, normally `localhost` for local development. |
 | `ssh.hostPort` | Number | Docker-assigned host TCP port mapped to container port 22. |
@@ -83,6 +91,8 @@ Base path: `/api/instances`. All instance routes are rate-limited to 60 requests
 | `POST` | `/api/instances` | Launches an instance. Body: `{ name, publicKey }`. |
 | `POST` | `/api/instances/:id/actions` | Performs `start`, `stop`, or `restart`. Body: `{ action }`. |
 | `DELETE` | `/api/instances/:id` | Force-removes the Docker container and deletes its public-key file. |
+| `POST` | `/api/ai/operations/interpret` | Converts a natural-language request into a proposed create/start/stop/delete operation; does not execute it. |
+| `POST` | `/api/ai/operations/execute` | Executes an explicitly confirmed AI proposal using the same instance service. |
 | `GET` | `/health` | Returns API health status. |
 
 Example request to start an existing instance:
@@ -132,12 +142,17 @@ Each launched instance is a container based on `mini-aws/ssh-instance:1.0.0`. Do
 - The root filesystem is read-only; only required runtime paths use small `tmpfs` mounts.
 - Containers drop all Linux capabilities, then add only the limited capabilities needed for SSH startup.
 - Resource limits are set to 128 processes, 512 MiB memory, and 0.5 CPU.
+- Each newly created container is connected to `mini-aws-network` while retaining its Docker-published host port for external SSH.
+- Docker DNS resolves an instance name to its private IP, so running instances can use `ping <name>` and `ssh instance@<name>`.
+- The image includes a constrained internal SSH launcher. It uses a platform-generated key mounted read-only and never exposes that key through the API, dashboard, or external user-key flow.
 
 ## 5. Privacy and Security Considerations
 
 - **Authentication:** `DEMO_AUTH=true` uses `x-user-id` / `local-user` solely for local development. Production must use verified JWT or session claims.
 - **Authorization:** Every instance query is constrained by `ownerId`, so users cannot access another user's instance record through the API.
 - **SSH key protection:** Public keys are stored with restrictive file permissions and deleted during instance removal. Private keys are never submitted to or stored by the application.
+- **Internal SSH separation:** A platform-generated internal credential is separate from the user-provided public key. It is mounted read-only for the internal SSH launcher and is not sent to the browser or returned by any API.
+- **Private-network naming:** Active instance names are unique across the shared Docker network because Docker DNS aliases must not collide.
 - **Docker socket risk:** Docker socket access has host-level privilege implications. The API must run as a tightly isolated worker and must never expose an unrestricted Docker socket through a public-facing service.
 - **Input validation:** Zod validates instance names, accepted SSH key types, request shapes, and lifecycle actions. JSON payloads are capped at 20 KB.
 - **HTTP protections:** Helmet supplies security headers, CORS restricts allowed browser origins, and per-route rate limiting reduces abuse.
@@ -156,3 +171,5 @@ Each launched instance is a container based on `mini-aws/ssh-instance:1.0.0`. Do
 ## 7. Production Recommendations
 
 Move the Docker worker off the public API host, replace demo authentication with an identity provider, use a remote Docker endpoint protected by mutual TLS, introduce a reconciliation worker for stale records, and add MongoDB backups and monitoring. For stronger tenant isolation, use a VM or microVM runtime instead of Docker containers.
+
+For a multi-tenant deployment, do not place unrelated tenants on one shared bridge network. Create a separate network per tenant/VPC, scope internal credentials accordingly, and enforce network policies in addition to application-level ownership checks.

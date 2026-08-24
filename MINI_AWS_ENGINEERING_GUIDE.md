@@ -4,6 +4,38 @@
 
 This platform provisions **short-lived, single-tenant Docker containers** that expose SSH on an allocated host TCP port. It is not a replacement for VM isolation: Docker shares a host kernel. Run the control plane and workload nodes on separate machines/accounts, and use a VM/microVM product when workloads are untrusted.
 
+> Current implementation note: the boilerplate examples below describe the base platform. The repository also includes the additive Gemini Operations Assistant and private Docker networking documented in the current-implementation section below. The manual dashboard controls and `/api/instances` API remain unchanged.
+
+## Current implementation addendum: AI and private networking
+
+The current repository uses `api/src/config.js` with `INSTANCE_NETWORK_NAME=mini-aws-network`, `GEMINI_API_KEY`, and `GEMINI_MODEL=gemini-3.6-flash`. The Gemini key remains server-side.
+
+`api/src/services/networkingService.js` creates or reuses the named Docker bridge network, connects and inspects containers, reads private IP addresses, rejects duplicate active names, and prepares the platform-managed internal SSH credential. `api/src/services/geminiService.js` only interprets a request; it cannot execute arbitrary commands.
+
+Each newly created instance joins `mini-aws-network` while retaining its existing dynamically allocated host-port mapping for external SSH. Its Docker hostname and endpoint alias are the instance name, so Docker DNS resolves a running name such as `backend` or `database` inside the network.
+
+The existing instance response retains every prior property and adds:
+
+| Field | Meaning |
+| --- | --- |
+| `hostname` | Docker hostname and private DNS alias (the instance name). |
+| `privateIP` | IP address assigned by the Docker bridge network. |
+| `networkName` | Configured Docker network name. |
+
+The React table renders these values in an additional private-network column. A duplicate active name returns `409 Conflict` before container creation. Existing-network conflicts are safely reused; missing containers return `404`; inspect, connect, and create failures become safe networking errors.
+
+The image includes `iputils`, so a running instance can use `ping backend`. It also includes the constrained launcher in `instance-image/internal-ssh.c`, enabling `ssh instance@backend`. The launcher accepts only `ssh instance@<Docker-alias>`, uses a root-owned platform-generated internal key mounted read-only, and accepts no caller-provided SSH options or remote command. Its companion public key is an additional authorized key in every new instance. This credential is never returned by the API or sent to the browser; the public key supplied in the launch dialog remains exclusively for external access such as `ssh instance@localhost -p <host-port>`.
+
+Rebuild the image after these changes:
+
+```sh
+docker build -t mini-aws/ssh-instance:1.0.0 ./instance-image
+```
+
+The separate dashboard panel sends a natural-language request to `POST /api/ai/operations/interpret`, where Gemini returns a schema-validated proposal restricted to `create`, `start`, `stop`, `delete`, or `none`. The UI requires explicit confirmation before calling `POST /api/ai/operations/execute`; execution calls the existing instance service and does not replace manual create/start/stop/restart/delete controls.
+
+For production multi-tenancy, create a network and internal credential per tenant/VPC rather than placing unrelated tenants on one bridge network, and add network-policy enforcement alongside application ownership checks.
+
 ```mermaid
 flowchart LR
   UI[React + Tailwind dashboard] -->|HTTPS / JWT| API[Express API]
@@ -454,4 +486,3 @@ io.of('/terminal').use(authSocket).on('connection', async socket => {
 * Protect secrets with a secret manager. Treat instance key files as sensitive; rotate/revoke by recreating containers or using an authorized-key management plan.
 * Build a reconciler for interrupted create/delete operations and emit lifecycle metrics, logs, traces, and alerts.
 * Test: unit-test service error paths with mocked Dockerode; integration-test a real disposable Docker daemon; test authorization so one user cannot operate another user’s container; run image/security scanning in CI.
-
