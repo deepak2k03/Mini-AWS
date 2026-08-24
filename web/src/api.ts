@@ -2,6 +2,9 @@ export type InstanceState = 'creating' | 'running' | 'stopped' | 'deleting' | 'e
 export type Instance = {
   _id: string;
   name: string;
+  hostname?: string;
+  privateIP?: string;
+  networkName?: string;
   state: InstanceState;
   ssh: { host: string; hostPort?: number; username: string };
   lastError?: string;

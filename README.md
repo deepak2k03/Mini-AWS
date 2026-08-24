@@ -49,6 +49,7 @@ DOCKER_SOCKET_PATH=//./pipe/docker_engine
 INSTANCE_IMAGE=mini-aws/ssh-instance:1.0.0
 SSH_PUBLIC_HOST=localhost
 INSTANCE_KEY_DIR=../instance-keys
+INSTANCE_NETWORK_NAME=mini-aws-network
 CORS_ORIGIN=http://localhost:5173
 DEMO_AUTH=true
 GEMINI_API_KEY=your_google_ai_studio_key
@@ -111,3 +112,7 @@ docker compose down
 ## AI Operations Assistant
 
 The dashboard includes a Gemini-powered assistant alongside the existing manual controls. It only accepts requests to create, start, stop, or delete an instance. Add a free Google AI Studio key as `GEMINI_API_KEY` in `api/.env`; the key is used only by the API server and is never sent to the browser. The assistant always presents its proposed action and requires a separate confirmation before it can change an instance.
+
+## Private instance network
+
+New instances automatically join the Docker bridge network `mini-aws-network`, retain their normal host-port SSH access, and receive a Docker DNS hostname equal to their instance name. Rebuild the instance image after pulling these changes: `docker build -t mini-aws/ssh-instance:1.0.0 ./instance-image`. From an instance, use `ping <instance-name>` or `ssh instance@<instance-name>` for private networking. Internal SSH uses a platform-managed credential that is never returned by the API or shared with the dashboard; user SSH keys remain solely for local-machine access.

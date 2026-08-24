@@ -5,6 +5,9 @@ const instanceSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 64 },
   dockerId: { type: String, unique: true, sparse: true, index: true },
   image: { type: String, required: true },
+  hostname: { type: String, trim: true, maxlength: 64 },
+  privateIP: { type: String },
+  networkName: { type: String },
   state: { type: String, enum: ['creating', 'running', 'stopped', 'deleting', 'deleted', 'error'], default: 'creating', index: true },
   ssh: {
     host: { type: String, required: true },
@@ -18,4 +21,3 @@ const instanceSchema = new mongoose.Schema({
 
 instanceSchema.index({ ownerId: 1, createdAt: -1 });
 export const Instance = mongoose.model('Instance', instanceSchema);
-
