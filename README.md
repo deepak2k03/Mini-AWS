@@ -51,6 +51,8 @@ SSH_PUBLIC_HOST=localhost
 INSTANCE_KEY_DIR=../instance-keys
 CORS_ORIGIN=http://localhost:5173
 DEMO_AUTH=true
+GEMINI_API_KEY=your_google_ai_studio_key
+GEMINI_MODEL=gemini-3.6-flash
 ```
 
 Then run:
@@ -105,3 +107,7 @@ To stop all local infrastructure later:
 cd "C:\Users\sman5\OneDrive\Desktop\Mini AWS"
 docker compose down
 ```
+
+## AI Operations Assistant
+
+The dashboard includes a Gemini-powered assistant alongside the existing manual controls. It only accepts requests to create, start, stop, or delete an instance. Add a free Google AI Studio key as `GEMINI_API_KEY` in `api/.env`; the key is used only by the API server and is never sent to the browser. The assistant always presents its proposed action and requires a separate confirmation before it can change an instance.
