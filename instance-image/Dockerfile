@@ -1,6 +1,6 @@
 FROM alpine:3.21
 
-RUN apk add --no-cache openssh-server tini iputils build-base \
+RUN apk add --no-cache openssh-server tini iputils build-base vim nano \
  && addgroup -S instance \
  && adduser -S -D -h /home/instance -s /bin/ash -G instance instance \
  && passwd -u instance \
