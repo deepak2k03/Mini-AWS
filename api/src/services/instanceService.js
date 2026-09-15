@@ -99,14 +99,25 @@ export async function createInstance({ ownerId, name, publicKey }) {
 export async function performAction(row, action) {
   if (!row.dockerId) throw Object.assign(new Error('Container is unavailable'), { statusCode: 409 });
   const container = docker.getContainer(row.dockerId);
-  // This also makes pre-network instances join when they are next started/restarted.
-  await connectContainer(container, row.hostname || row.name);
-  if (action === 'start') await container.start();
-  else if (action === 'stop') await container.stop({ t: 15 });
-  else await container.restart({ t: 15 });
-  const info = await container.inspect();
-  const details = privateNetworkDetails(info);
-  return Instance.findByIdAndUpdate(row._id, { state: info.State.Running ? 'running' : 'stopped', ...details, hostname: row.hostname || row.name, networkName: config.INSTANCE_NETWORK_NAME, lastError: null }, { new: true });
+  try {
+    // This also makes pre-network instances join when they are next started/restarted.
+    await connectContainer(container, row.hostname || row.name);
+    if (action === 'start') await container.start();
+    else if (action === 'stop') await container.stop({ t: 15 });
+    else await container.restart({ t: 15 });
+    const info = await container.inspect();
+    const details = privateNetworkDetails(info);
+    return await Instance.findByIdAndUpdate(row._id, { state: info.State.Running ? 'running' : 'stopped', ...details, hostname: row.hostname || row.name, networkName: config.INSTANCE_NETWORK_NAME, lastError: null }, { new: true });
+  } catch (error) {
+    if (error.statusCode === 404) {
+      return await Instance.findByIdAndUpdate(row._id, { state: 'error', lastError: 'Container no longer exists in Docker.' }, { new: true });
+    }
+    // 304 means container is already stopped
+    if (action === 'stop' && error.statusCode === 304) {
+      return await Instance.findByIdAndUpdate(row._id, { state: 'stopped', lastError: null }, { new: true });
+    }
+    throw error;
+  }
 }
 
 export async function deleteInstance(row) {
