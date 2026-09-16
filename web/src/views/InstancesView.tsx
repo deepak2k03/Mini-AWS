@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Search, Filter, Server, Terminal, Play, Square, RotateCcw, Trash2, Copy, Check } from 'lucide-react';
+import { Search, Filter, Server, Terminal, Play, Square, RotateCcw, Trash2, Copy, Check, ChevronLeft, Shield, Cpu, Network as NetworkIcon, Clock } from 'lucide-react';
 import type { Instance } from '../api';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { LaunchInstanceDialog } from '../components/LaunchInstanceDialog';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 
 interface InstancesViewProps {
   instances: Instance[];
@@ -27,9 +27,11 @@ const statusConfig: Record<Instance['state'], { color: 'success' | 'default' | '
 
 export function InstancesView({ instances, isLoading, error, busyId, onAction, onDelete, onTerminal, onCreated }: InstancesViewProps) {
   const [search, setSearch] = useState('');
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string>();
 
   const filteredInstances = instances.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+  const selectedInstance = instances.find(i => i._id === selectedInstanceId);
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -37,48 +39,61 @@ export function InstancesView({ instances, isLoading, error, busyId, onAction, o
     setTimeout(() => setCopiedId(undefined), 2000);
   };
 
+  if (selectedInstance) {
+    return <InstanceDetails 
+      instance={selectedInstance} 
+      onBack={() => setSelectedInstanceId(null)} 
+      onAction={onAction}
+      onDelete={onDelete}
+      onTerminal={onTerminal}
+      isBusy={busyId === selectedInstance._id}
+      handleCopy={handleCopy}
+      copiedId={copiedId}
+    />;
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Instances</h2>
-          <p className="mt-1 text-sm text-slate-400">Manage your SSH-enabled cloud instances and container workloads.</p>
+          <h2 className="text-[20px] font-bold tracking-tight text-console-text">Instances</h2>
+          <p className="mt-1 text-[13px] text-console-secondary">Manage your SSH-enabled cloud instances.</p>
         </div>
         <LaunchInstanceDialog onCreated={onCreated} />
       </div>
 
-      <div className="flex items-center gap-4 pb-4">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+      <div className="flex items-center gap-3 pb-2">
+        <div className="relative max-w-sm flex-1 group">
+          <Search className="absolute left-3 top-2 h-4 w-4 text-console-muted group-focus-within:text-console-brand transition-colors" />
           <input
             type="text"
-            placeholder="Search instances by name..."
+            placeholder="Search instances..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-md border border-slate-800 bg-slate-900 py-2 pl-9 pr-4 text-sm text-slate-100 placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+            className="w-full rounded border border-console-border bg-console-bg py-1.5 pl-9 pr-4 text-[13px] text-console-text placeholder:text-console-muted focus:border-console-brand focus:outline-none focus:ring-1 focus:ring-console-brand"
           />
         </div>
-        <Button variant="outline" className="gap-2">
-          <Filter className="h-4 w-4" /> Filter
+        <Button variant="outline" className="gap-2 text-[12px] h-8">
+          <Filter className="h-3 w-3" /> Status filter
         </Button>
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-900/50 bg-red-950/20 p-6 text-center text-red-400">
-          <p className="font-medium">Failed to load instances</p>
-          <p className="mt-1 text-sm">{error.message}</p>
+        <div className="rounded border border-console-error/20 bg-console-error/10 p-6 text-center text-console-error">
+          <p className="text-[14px] font-medium">Failed to load instances</p>
+          <p className="mt-1 text-[12px] opacity-80">{error.message}</p>
         </div>
       ) : isLoading ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-500">
-          Loading instances...
+        <div className="rounded border border-console-border bg-console-card p-12 text-center text-console-muted text-[13px]">
+          Loading instance data...
         </div>
       ) : filteredInstances.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/20 p-12 text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800 text-slate-400">
-            <Server className="h-6 w-6" />
+        <div className="flex flex-col items-center justify-center rounded border border-dashed border-console-border bg-console-card/50 p-12 text-center">
+          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-console-elevated text-console-muted">
+            <Server className="h-5 w-5" />
           </div>
-          <h3 className="text-lg font-medium text-slate-200">No instances found</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="text-[14px] font-medium text-console-text">No instances found</h3>
+          <p className="mt-1 text-[13px] text-console-secondary">
             {search ? 'Try adjusting your search query.' : 'Launch your first isolated cloud instance to get started.'}
           </p>
           {!search && (
@@ -88,94 +103,85 @@ export function InstancesView({ instances, isLoading, error, busyId, onAction, o
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 shadow-sm">
-          <table className="min-w-full text-left text-sm">
+        <div className="overflow-x-auto rounded border border-console-border bg-console-card shadow-sm">
+          <table className="min-w-full text-left text-[13px]">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400">
-                <th className="font-medium px-6 py-4">Instance</th>
-                <th className="font-medium px-6 py-4">Status</th>
-                <th className="font-medium px-6 py-4">Private IP</th>
-                <th className="font-medium px-6 py-4">SSH Endpoint</th>
-                <th className="font-medium px-6 py-4 text-right">Actions</th>
+              <tr className="border-b border-console-border bg-console-elevated/50 text-console-muted">
+                <th className="font-medium px-4 py-3 w-[25%]">Instance</th>
+                <th className="font-medium px-4 py-3 w-[15%]">Status</th>
+                <th className="font-medium px-4 py-3 w-[15%]">Private IP</th>
+                <th className="font-medium px-4 py-3 w-[25%]">SSH Endpoint</th>
+                <th className="font-medium px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-console-border">
               {filteredInstances.map(instance => {
                 const isBusy = busyId === instance._id;
                 const sshCmd = instance.ssh.hostPort ? `ssh ${instance.ssh.username}@${instance.ssh.host} -p ${instance.ssh.hostPort}` : '';
                 const conf = statusConfig[instance.state] || statusConfig.error;
                 
                 return (
-                  <tr key={instance._id} className="transition-colors hover:bg-slate-800/20">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-800 text-slate-300">
-                          <Server className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-200">{instance.name}</p>
-                          <p className="text-xs text-slate-500">
-                            Created {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true })}
-                          </p>
-                        </div>
+                  <tr key={instance._id} className="transition-colors hover:bg-console-hover group">
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col cursor-pointer" onClick={() => setSelectedInstanceId(instance._id)}>
+                        <p className="font-medium text-console-brand group-hover:text-console-brandHover transition-colors">{instance.name}</p>
+                        <p className="text-[11px] text-console-secondary truncate max-w-[200px]">
+                          Created {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true })}
+                        </p>
                       </div>
-                      {instance.lastError && (
-                        <p className="mt-2 text-xs text-red-400 max-w-xs">{instance.lastError}</p>
-                      )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <Badge variant={conf.color}>{conf.label}</Badge>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       {instance.privateIP ? (
-                        <div className="font-mono text-xs text-slate-300">
+                        <div className="font-mono text-[11px] text-console-technical">
                           {instance.privateIP}
-                          <p className="text-[10px] font-sans text-slate-500 mt-0.5">{instance.networkName}</p>
                         </div>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-console-muted">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       {sshCmd ? (
                         <div className="flex items-center gap-2">
-                          <code className="rounded bg-slate-950 px-2 py-1 text-xs font-medium text-cyan-300 border border-slate-800">
+                          <code className="rounded bg-console-bg px-2 py-1 text-[11px] font-mono text-console-technical border border-console-border truncate max-w-[200px]">
                             {sshCmd}
                           </code>
                           <button 
                             onClick={() => handleCopy(sshCmd, instance._id)}
-                            className="text-slate-500 hover:text-slate-300 p-1 transition-colors"
+                            className="text-console-muted hover:text-console-text p-1 transition-colors"
                             title="Copy command"
                           >
-                            {copiedId === instance._id ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                            {copiedId === instance._id ? <Check className="h-3.5 w-3.5 text-console-success" /> : <Copy className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-console-muted">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
                         {instance.state === 'running' && (
                           <>
-                            <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => onTerminal(instance)} title="Open Terminal">
-                              <Terminal className="h-4 w-4 text-cyan-400" />
+                            <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => onTerminal(instance)} title="Connect">
+                              <Terminal className="h-3.5 w-3.5 text-console-brand" />
                             </Button>
                             <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => onAction(instance._id, 'restart')} title="Restart">
-                              <RotateCcw className="h-4 w-4" />
+                              <RotateCcw className="h-3.5 w-3.5" />
                             </Button>
                             <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => onAction(instance._id, 'stop')} title="Stop">
-                              <Square className="h-4 w-4" />
+                              <Square className="h-3.5 w-3.5" />
                             </Button>
                           </>
                         )}
                         {instance.state === 'stopped' && (
                           <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => onAction(instance._id, 'start')} title="Start">
-                            <Play className="h-4 w-4 text-emerald-400" />
+                            <Play className="h-3.5 w-3.5 text-console-success" />
                           </Button>
                         )}
-                        <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => onDelete(instance._id)} className="hover:text-red-400 hover:bg-red-950/30" title="Delete">
-                          <Trash2 className="h-4 w-4" />
+                        <Button size="icon" variant="ghost" disabled={isBusy} onClick={() => { if (window.confirm('Delete this instance permanently?')) onDelete(instance._id); }} className="hover:text-console-error hover:bg-console-error/10" title="Delete">
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </td>
@@ -186,6 +192,130 @@ export function InstancesView({ instances, isLoading, error, busyId, onAction, o
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function InstanceDetails({ instance, onBack, onAction, onDelete, onTerminal, isBusy, handleCopy, copiedId }: any) {
+  const conf = statusConfig[instance.state as Instance['state']] || statusConfig.error;
+  const sshCmd = instance.ssh?.hostPort ? `ssh ${instance.ssh.username}@${instance.ssh.host} -p ${instance.ssh.hostPort}` : '';
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+      <div className="flex items-center gap-4 border-b border-console-border pb-4">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-console-secondary -ml-3">
+          <ChevronLeft className="h-4 w-4 mr-1" /> Back
+        </Button>
+        <div className="h-4 w-px bg-console-border"></div>
+        <div className="flex items-center gap-3">
+          <h2 className="text-[20px] font-bold text-console-text">{instance.name}</h2>
+          <Badge variant={conf.color}>{conf.label}</Badge>
+        </div>
+        <div className="ml-auto flex gap-2">
+          {instance.state === 'running' && (
+            <>
+              <Button size="sm" variant="outline" disabled={isBusy} onClick={() => onAction(instance._id, 'stop')}><Square className="h-3.5 w-3.5 mr-2" /> Stop</Button>
+              <Button size="sm" variant="outline" disabled={isBusy} onClick={() => onAction(instance._id, 'restart')}><RotateCcw className="h-3.5 w-3.5 mr-2" /> Restart</Button>
+              <Button size="sm" variant="primary" disabled={isBusy} onClick={() => onTerminal(instance)}><Terminal className="h-3.5 w-3.5 mr-2" /> Connect</Button>
+            </>
+          )}
+          {instance.state === 'stopped' && (
+            <Button size="sm" variant="outline" disabled={isBusy} onClick={() => onAction(instance._id, 'start')}><Play className="h-3.5 w-3.5 mr-2 text-console-success" /> Start</Button>
+          )}
+          <Button size="sm" variant="danger" disabled={isBusy} onClick={() => { if (window.confirm('Delete this instance permanently?')) onDelete(instance._id); }}><Trash2 className="h-3.5 w-3.5 mr-2" /> Delete</Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <div className="rounded border border-console-border bg-console-card overflow-hidden">
+            <div className="px-4 py-3 bg-console-elevated/50 border-b border-console-border font-medium text-[14px] flex items-center gap-2">
+              <Server className="h-4 w-4 text-console-muted" /> Overview
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-[11px] text-console-secondary mb-1">Instance ID</p>
+                <code className="text-[12px] font-mono text-console-technical">{instance._id}</code>
+              </div>
+              <div>
+                <p className="text-[11px] text-console-secondary mb-1">Image</p>
+                <code className="text-[12px] font-mono text-console-technical">mini-aws/ssh-instance:latest</code>
+              </div>
+              <div>
+                <p className="text-[11px] text-console-secondary mb-1">Created</p>
+                <p className="text-[13px] text-console-text">{format(new Date(instance.createdAt), 'MMM d, yyyy HH:mm:ss')}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded border border-console-border bg-console-card overflow-hidden">
+            <div className="px-4 py-3 bg-console-elevated/50 border-b border-console-border font-medium text-[14px] flex items-center gap-2">
+              <Shield className="h-4 w-4 text-console-muted" /> Security & Connection
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-[11px] text-console-secondary mb-1">SSH Command</p>
+                <div className="flex items-center gap-2">
+                  <code className="bg-console-bg border border-console-border rounded px-2 py-1 text-[12px] font-mono text-console-technical flex-1 truncate">
+                    {sshCmd || '—'}
+                  </code>
+                  {sshCmd && (
+                    <Button variant="outline" size="icon" onClick={() => handleCopy(sshCmd, 'ssh')}>
+                      {copiedId === 'ssh' ? <Check className="h-3.5 w-3.5 text-console-success" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] text-console-secondary mb-1">Authentication</p>
+                <p className="text-[13px] text-console-text">Ed25519 Public Key</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="rounded border border-console-border bg-console-card overflow-hidden">
+            <div className="px-4 py-3 bg-console-elevated/50 border-b border-console-border font-medium text-[14px] flex items-center gap-2">
+              <NetworkIcon className="h-4 w-4 text-console-muted" /> Network
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] text-console-secondary mb-1">Private IP</p>
+                  <code className="text-[12px] font-mono text-console-technical">{instance.privateIP || '—'}</code>
+                </div>
+                <div>
+                  <p className="text-[11px] text-console-secondary mb-1">VPC Network</p>
+                  <code className="text-[12px] font-mono text-console-technical">{instance.networkName || '—'}</code>
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] text-console-secondary mb-1">Port Mapping</p>
+                <p className="text-[13px] text-console-text">22/tcp → {instance.ssh?.hostPort || '—'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded border border-console-border bg-console-card overflow-hidden">
+            <div className="px-4 py-3 bg-console-elevated/50 border-b border-console-border font-medium text-[14px] flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-console-muted" /> Resources
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[11px] text-console-secondary mb-1">CPU Allocation</p>
+                  <code className="text-[12px] font-mono text-console-technical">0.5 vCPU</code>
+                </div>
+                <div>
+                  <p className="text-[11px] text-console-secondary mb-1">Memory Allocation</p>
+                  <code className="text-[12px] font-mono text-console-technical">512 MB</code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

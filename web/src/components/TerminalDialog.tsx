@@ -62,26 +62,25 @@ export function TerminalDialog({ instance, onClose }: { instance: Instance | nul
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="terminal-title">
-      <div className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-700 bg-[#020617] shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-200">
+      <div className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-[8px] border border-console-border bg-console-bg shadow-2xl animate-in zoom-in-95 duration-200">
         
         {/* Terminal Header */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900/80 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <TerminalIcon className="h-4 w-4 text-cyan-500" />
-            <span id="terminal-title" className="font-medium text-slate-300">{instance.name}</span>
-            <span className="text-slate-600">—</span>
-            <span className="font-mono text-xs">{instance.ssh.username}@{instance.ssh.host}:{instance.ssh.hostPort}</span>
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-console-border bg-console-elevated/80 px-4 py-3">
+          <div className="flex items-center gap-2 text-[13px] text-console-secondary">
+            <TerminalIcon className="h-4 w-4" />
+            <span id="terminal-title" className="font-medium text-console-text">{instance.name}</span>
+            <span className="text-console-muted">—</span>
+            <span className="font-mono text-[11px] text-console-technical">{instance.privateIP}</span>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded bg-console-bg px-2 py-1">
+              <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-console-success shadow-[0_0_8px_rgba(34,197,94,0.4)]' : error ? 'bg-console-error' : 'bg-console-warning'}`}></span>
+              <span className="text-[11px] font-medium text-console-secondary">
+                {isConnected ? 'Connected' : error ? 'Disconnected' : 'Connecting...'}
               </span>
-              <span className="text-xs font-medium text-emerald-500">Connected</span>
             </div>
-            <button onClick={onClose} className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200">
+            <button onClick={onClose} className="rounded p-1 text-console-muted transition-colors hover:bg-console-hover hover:text-console-text">
               <X className="h-5 w-5" />
             </button>
           </div>

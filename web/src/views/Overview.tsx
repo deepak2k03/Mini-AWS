@@ -1,12 +1,13 @@
-import { Server, CheckCircle2, XCircle, AlertCircle, Play } from 'lucide-react';
+import { Server, CheckCircle2, XCircle, AlertCircle, Play, Globe, Activity, ArrowRight } from 'lucide-react';
 import type { Instance } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { formatDistanceToNow } from 'date-fns';
 
 interface OverviewProps {
   instances: Instance[];
   isLoading: boolean;
-  onNavigate: (view: 'instances' | 'ai') => void;
+  onNavigate: (view: 'instances' | 'ai' | 'network') => void;
 }
 
 export function Overview({ instances, isLoading, onNavigate }: OverviewProps) {
@@ -16,66 +17,106 @@ export function Overview({ instances, isLoading, onNavigate }: OverviewProps) {
   const errors = instances.filter(i => i.state === 'error').length;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <section className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <section className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between pb-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Cloud infrastructure, simplified.</h2>
-          <p className="mt-2 text-slate-400">Provision and manage isolated SSH-enabled compute instances from one place.</p>
+          <h2 className="text-[24px] font-bold tracking-tight text-white">Cloud infrastructure, simplified.</h2>
+          <p className="mt-1 text-[14px] text-console-secondary">Provision and manage isolated SSH-enabled compute instances from one place.</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={() => onNavigate('ai')}>Ask AI</Button>
-          <Button variant="primary" onClick={() => onNavigate('instances')}>View Instances</Button>
+        <div className="flex items-center gap-6">
+          <button 
+            onClick={() => onNavigate('ai')} 
+            className="text-[13px] font-semibold text-[#A78BFA] hover:text-[#C4B5FD] transition-colors"
+          >
+            Ask AI
+          </button>
+          <button 
+            onClick={() => onNavigate('instances')} 
+            className="rounded border border-console-border text-[13px] font-medium text-console-text px-4 py-1.5 hover:bg-white hover:text-black transition-colors"
+          >
+            View Instances
+          </button>
         </div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Total Instances" value={total} icon={Server} loading={isLoading} />
-        <MetricCard title="Running" value={running} icon={Play} valueColor="text-emerald-400" loading={isLoading} />
-        <MetricCard title="Stopped" value={stopped} icon={CheckCircle2} valueColor="text-slate-400" loading={isLoading} />
-        <MetricCard title="Errors" value={errors} icon={AlertCircle} valueColor="text-red-400" loading={isLoading} />
+        <MetricCard title="Total Instances" value={total} subtitle="Provisioned" icon={Server} loading={isLoading} />
+        <MetricCard title="Running" value={running} subtitle="Currently active" icon={Play} loading={isLoading} />
+        <MetricCard title="Stopped" value={stopped} subtitle="Halted" icon={CheckCircle2} loading={isLoading} />
+        <MetricCard title="Errors" value={errors} subtitle="Requires attention" icon={AlertCircle} loading={isLoading} />
       </div>
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Architecture</CardTitle>
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card className="flex flex-col border border-console-border bg-console-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 pt-5 px-5">
+            <CardTitle className="text-[15px] font-semibold text-white flex items-center gap-2">
+              <Globe className="h-4 w-4" /> Infrastructure
+            </CardTitle>
+            <button 
+              onClick={() => onNavigate('network')} 
+              className="text-[12px] font-medium text-white flex items-center gap-1 hover:underline"
+            >
+              View Network <ArrowRight className="h-3 w-3" />
+            </button>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center space-y-4 py-8">
-              <div className="rounded-lg border border-slate-700 bg-slate-800 px-6 py-3 font-medium text-slate-200 shadow-sm">Mini-AWS Console</div>
-              <div className="h-6 w-px bg-slate-600"></div>
-              <div className="rounded-lg border border-cyan-800 bg-cyan-950/30 px-6 py-3 font-medium text-cyan-400 shadow-sm">API Gateway</div>
-              <div className="h-6 w-px bg-slate-600"></div>
-              <div className="rounded-lg border border-indigo-800 bg-indigo-950/30 px-6 py-3 font-medium text-indigo-400 shadow-sm">Docker Engine</div>
-              <div className="flex w-full max-w-[200px] justify-between border-t border-slate-600 pt-4 mt-2">
-                <div className="rounded border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-300">Container</div>
-                <div className="rounded border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-300">Container</div>
+          <CardContent className="px-5 pb-5 pt-3 flex-1">
+            <div className="rounded-lg border border-console-border bg-transparent p-4 h-full flex flex-col justify-between">
+              <div>
+                <div className="mb-6">
+                  <h4 className="text-[14px] font-semibold text-white">mini-aws-network</h4>
+                  <p className="text-[12px] text-console-secondary mt-0.5">Private bridge network</p>
+                </div>
+                
+                {isLoading ? (
+                  <div className="space-y-2">
+                    {[1,2].map(i => <div key={i} className="h-8 w-full animate-pulse rounded bg-console-elevated"></div>)}
+                  </div>
+                ) : instances.length === 0 ? (
+                  <p className="text-[12px] text-white">No instances connected.</p>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    {instances.map(instance => (
+                      <div key={instance._id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-[13px] font-medium text-white">{instance.name}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-8 pt-3 border-t border-console-border text-[12px] text-console-secondary">
+                <span>{total} instances · {running} running · {stopped} stopped</span>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+        <Card className="flex flex-col border border-console-border bg-console-card">
+          <CardHeader className="pb-2 pt-5 px-5">
+            <CardTitle className="text-[15px] font-semibold text-white flex items-center gap-2">
+              <Activity className="h-4 w-4" /> Recent Activity
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-5 pb-5 pt-3 flex-1 flex flex-col justify-center items-center">
             {instances.length === 0 ? (
-              <div className="flex h-40 flex-col items-center justify-center text-slate-500">
-                <p>No recent activity</p>
+              <div className="text-center w-full">
+                <p className="text-[13px] font-medium text-white">No recent activity</p>
+                <p className="text-[12px] text-console-secondary mt-1">Instance lifecycle events will appear here.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {instances.slice(0, 5).map(instance => (
-                  <div key={instance._id} className="flex items-center gap-4 border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
-                    <div className={`h-2 w-2 rounded-full ${instance.state === 'running' ? 'bg-emerald-500' : instance.state === 'error' ? 'bg-red-500' : 'bg-slate-500'}`} />
+              <div className="w-full space-y-4">
+                {instances.slice(0, 5).map((instance) => (
+                  <div key={instance._id} className="flex gap-4 relative py-1">
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-200">{instance.name}</p>
-                      <p className="text-xs text-slate-500">State changed to {instance.state}</p>
+                      <p className="text-[13px] text-white">
+                        <span className="font-medium">{instance.name}</span> is now <span>{instance.state}</span>
+                      </p>
+                      <span className="text-[11px] text-console-secondary">
+                        {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true })}
+                      </span>
                     </div>
-                    <span className="text-xs text-slate-500">
-                      {new Date(instance.createdAt).toLocaleDateString()}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -87,20 +128,21 @@ export function Overview({ instances, isLoading, onNavigate }: OverviewProps) {
   );
 }
 
-function MetricCard({ title, value, icon: Icon, valueColor = "text-slate-100", loading }: any) {
+function MetricCard({ title, value, subtitle, icon: Icon, loading }: any) {
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-slate-400">{title}</p>
-          <Icon className="h-4 w-4 text-slate-500" />
+    <Card className="border border-console-border bg-console-card p-5 flex flex-col justify-between">
+      <div className="flex items-center gap-2 mb-6">
+        <Icon className="h-4 w-4 text-white" />
+        <p className="text-[13px] font-medium text-white">{title}</p>
+      </div>
+      {loading ? (
+        <div className="h-8 w-16 animate-pulse rounded bg-console-elevated" />
+      ) : (
+        <div className="flex items-baseline gap-2">
+          <p className="text-[24px] font-bold leading-none text-white">{value}</p>
+          {subtitle && <p className="text-[11px] text-white font-medium">{subtitle}</p>}
         </div>
-        {loading ? (
-          <div className="mt-2 h-8 w-16 animate-pulse rounded bg-slate-800" />
-        ) : (
-          <p className={`mt-2 text-3xl font-bold ${valueColor}`}>{value}</p>
-        )}
-      </CardContent>
+      )}
     </Card>
   );
 }

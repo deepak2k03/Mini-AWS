@@ -36,7 +36,7 @@ export function AppShell({
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200">
+    <div className="min-h-screen bg-console-bg text-console-text font-sans">
       <Sidebar currentView={currentView} onChangeView={setCurrentView} />
       
       <div className="pl-64">

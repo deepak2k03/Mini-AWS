@@ -9,13 +9,13 @@ function Badge({ className, variant = "default", ...props }: BadgeProps) {
   return (
     <div
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2",
+        "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors focus:outline-none focus:ring-1 focus:ring-console-brand",
         {
-          "border-transparent bg-slate-800 text-slate-100": variant === "default",
-          "border-transparent bg-emerald-500/15 text-emerald-400": variant === "success",
-          "border-transparent bg-amber-500/15 text-amber-400": variant === "warning",
-          "border-transparent bg-red-500/15 text-red-400": variant === "error",
-          "text-slate-300 border-slate-700": variant === "outline",
+          "border-transparent bg-console-elevated text-console-text": variant === "default",
+          "border-console-success/20 bg-console-success/10 text-console-success": variant === "success",
+          "border-console-warning/20 bg-console-warning/10 text-console-warning": variant === "warning",
+          "border-console-error/20 bg-console-error/10 text-console-error": variant === "error",
+          "text-console-secondary border-console-border": variant === "outline",
         },
         className
       )}

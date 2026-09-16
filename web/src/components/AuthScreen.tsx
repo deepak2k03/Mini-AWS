@@ -41,85 +41,87 @@ export function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void })
   const error = login.error || register.error;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
-      {/* Decorative background */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute -left-[10%] top-1/4 h-[500px] w-[500px] rounded-full bg-cyan-900/20 blur-[120px]"></div>
-        <div className="absolute -right-[10%] bottom-1/4 h-[500px] w-[500px] rounded-full bg-violet-900/20 blur-[120px]"></div>
-      </div>
-
-      <div className="relative z-10 w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center justify-center text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/20 text-cyan-400 ring-1 ring-cyan-500/50 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
-            <Cloud className="h-8 w-8" />
+    <div className="flex min-h-screen items-center justify-center bg-console-bg p-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.05),transparent_70%)]"></div>
+      
+      <div className="w-full max-w-md z-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="mb-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-console-brandSubtle text-console-brand shadow-lg">
+            <Cloud className="h-7 w-7" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">Mini-AWS Console</h1>
-          <p className="mt-2 text-sm text-slate-400">Manage your isolated cloud infrastructure</p>
+          <h1 className="mt-6 text-[24px] font-bold tracking-tight text-console-text">Mini-AWS Console</h1>
+          <p className="mt-2 text-[14px] text-console-secondary">Manage your isolated cloud infrastructure</p>
         </div>
 
-        <Card className="border-slate-800 bg-slate-900/80 backdrop-blur-xl shadow-2xl">
-          <form onSubmit={handleSubmit}>
-            <CardHeader>
-              <CardTitle className="text-xl">{isLogin ? 'Sign In' : 'Create Account'}</CardTitle>
-              <CardDescription>
-                {isLogin 
-                  ? 'Enter your credentials to access your instances' 
-                  : 'Get started with your own cloud environment'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300" htmlFor="email">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                  <input
-                    id="email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="developer@example.com"
-                    className="w-full rounded-md border border-slate-700 bg-slate-950/50 py-2 pl-10 pr-3 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300" htmlFor="password">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
-                  <input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-md border border-slate-700 bg-slate-950/50 py-2 pl-10 pr-3 text-sm text-slate-100 placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all"
-                  />
-                </div>
-              </div>
+        <Card className="border-console-border bg-console-card/90 backdrop-blur-xl shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-center text-[18px]">Welcome</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="rounded-md bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20">
+                <div className="rounded border border-console-error/20 bg-console-error/10 p-3 text-[13px] text-console-error text-center animate-in fade-in zoom-in duration-300">
                   {error.message}
                 </div>
               )}
-            </CardContent>
-            <CardFooter className="flex flex-col gap-4">
-              <Button type="submit" variant="primary" className="w-full h-10" disabled={isPending}>
-                {isPending ? 'Please wait...' : (isLogin ? 'Sign In' : 'Create Account')}
-              </Button>
-              <div className="text-center text-sm text-slate-400">
-                {isLogin ? "Don't have an account? " : "Already have an account? "}
-                <button 
-                  type="button" 
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline transition-all"
-                >
-                  {isLogin ? 'Sign up' : 'Sign in'}
-                </button>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[13px] font-medium text-console-text" htmlFor="email">Email</label>
+                  <div className="relative mt-1.5 group">
+                    <Mail className="absolute left-3 top-2.5 h-4 w-4 text-console-muted group-focus-within:text-console-brand transition-colors" />
+                    <input
+                      id="email"
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="developer@example.com"
+                      className="w-full rounded border border-console-border bg-console-bg py-2 pl-9 pr-3 text-[13px] text-console-text placeholder:text-console-muted focus:border-console-brand focus:outline-none focus:ring-1 focus:ring-console-brand transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[13px] font-medium text-console-text" htmlFor="password">Password</label>
+                  <div className="relative mt-1.5 group">
+                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-console-muted group-focus-within:text-console-brand transition-colors" />
+                    <input
+                      id="password"
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded border border-console-border bg-console-bg py-2 pl-9 pr-3 text-[13px] text-console-text placeholder:text-console-muted focus:border-console-brand focus:outline-none focus:ring-1 focus:ring-console-brand transition-all"
+                    />
+                  </div>
+                </div>
               </div>
-            </CardFooter>
-          </form>
+
+              <div className="flex flex-col gap-4 mt-6">
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  className="w-full h-10 shadow-lg shadow-console-brand/20 transition-all hover:shadow-console-brand/30"
+                  disabled={isPending}
+                >
+                  {isPending ? 'Please wait...' : (isLogin ? 'Sign in' : 'Create Account')}
+                </Button>
+
+                <div className="text-center text-[13px] text-console-secondary">
+                  {isLogin ? "Don't have an account? " : "Already have an account? "}
+                  <button 
+                    type="button" 
+                    onClick={() => setIsLogin(!isLogin)}
+                    className="font-medium text-console-brand hover:text-console-hover hover:underline transition-all"
+                  >
+                    {isLogin ? 'Sign up' : 'Sign in'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </CardContent>
         </Card>
       </div>
     </div>

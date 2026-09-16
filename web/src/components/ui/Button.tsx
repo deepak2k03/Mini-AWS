@@ -12,17 +12,17 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-slate-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex items-center justify-center whitespace-nowrap rounded-[6px] text-[13px] font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-console-brand disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
           {
-            "bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 shadow-sm": variant === "default",
-            "bg-cyan-500 text-slate-950 hover:bg-cyan-400 border border-cyan-500 shadow-sm": variant === "primary",
-            "bg-transparent text-red-400 hover:bg-red-950/30 border border-red-900/50": variant === "danger",
-            "border border-slate-700 bg-transparent hover:bg-slate-800 text-slate-300": variant === "outline",
-            "hover:bg-slate-800/80 hover:text-slate-100 text-slate-400": variant === "ghost",
-            "h-9 px-4 py-2": size === "default",
-            "h-8 rounded-md px-3 text-xs": size === "sm",
-            "h-10 rounded-md px-8": size === "lg",
-            "h-9 w-9": size === "icon",
+            "bg-console-card text-console-text hover:bg-console-hover active:bg-console-border border border-console-border shadow-sm": variant === "default",
+            "bg-console-brand text-console-bg hover:bg-console-brandHover active:bg-cyan-600 border border-transparent shadow-sm": variant === "primary",
+            "bg-transparent text-console-error hover:bg-console-error/10 active:bg-console-error/20 border border-console-error/20": variant === "danger",
+            "border border-console-border bg-transparent hover:bg-console-hover active:bg-console-border text-console-text": variant === "outline",
+            "hover:bg-console-hover active:bg-console-border hover:text-console-text text-console-secondary": variant === "ghost",
+            "h-8 px-4": size === "default",
+            "h-7 px-3 text-[12px]": size === "sm",
+            "h-9 px-8": size === "lg",
+            "h-8 w-8": size === "icon",
           },
           className
         )}
