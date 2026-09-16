@@ -1,30 +1,70 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api, instancesApi } from './api';
+import { AuthScreen } from './components/AuthScreen';
+import { AppShell } from './components/layout/AppShell';
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { instancesApi, type Instance } from './api';
-import { InstanceTable } from './components/InstanceTable';
-import { LaunchInstanceDialog } from './components/LaunchInstanceDialog';
-import { AiOperationsAssistant } from './components/AiOperationsAssistant';
-import { TerminalDialog } from './components/TerminalDialog';
 
 export default function App() {
-  const client = useQueryClient();
+  const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string>();
-  const [terminalInstance, setTerminalInstance] = useState<Instance | null>(null);
-  const refresh = () => void client.invalidateQueries({ queryKey: ['instances'] });
-  const query = useQuery({ queryKey: ['instances'], queryFn: instancesApi.list, refetchInterval: 10000 });
-  const action = useMutation({ mutationFn: ({ id, action }: { id: string; action: 'start' | 'stop' | 'restart' }) => instancesApi.action(id, action), onSuccess: refresh, onSettled: () => setBusyId(undefined) });
-  const remove = useMutation({ mutationFn: instancesApi.remove, onSuccess: refresh, onSettled: () => setBusyId(undefined) });
+
+  // Auth Query
+  const meQuery = useQuery({ 
+    queryKey: ['me'], 
+    queryFn: api.me,
+    retry: false
+  });
+
+  // Instances Query
+  const instancesQuery = useQuery({ 
+    queryKey: ['instances'], 
+    queryFn: instancesApi.list, 
+    refetchInterval: 10000,
+    enabled: !!meQuery.data
+  });
+
+  const refreshInstances = () => void queryClient.invalidateQueries({ queryKey: ['instances'] });
+
+  const actionMutation = useMutation({ 
+    mutationFn: ({ id, action }: { id: string; action: 'start' | 'stop' | 'restart' }) => instancesApi.action(id, action), 
+    onSuccess: refreshInstances, 
+    onSettled: () => setBusyId(undefined) 
+  });
+  
+  const removeMutation = useMutation({ 
+    mutationFn: instancesApi.remove, 
+    onSuccess: refreshInstances, 
+    onSettled: () => setBusyId(undefined) 
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: api.logout,
+    onSuccess: () => {
+      queryClient.setQueryData(['me'], null);
+      queryClient.clear();
+    }
+  });
+
+  if (meQuery.isLoading) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-950"><div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-800 border-t-cyan-500"></div></div>;
+  }
+
+  if (!meQuery.data) {
+    return <AuthScreen onAuthenticated={() => meQuery.refetch()} />;
+  }
+
   return (
-    <main className="min-h-screen bg-slate-950 px-5 py-8 text-slate-100 md:px-10">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-9 flex items-center justify-between">
-          <div><p className="text-sm font-medium text-cyan-300">Mini-AWS</p><h1 className="mt-1 text-3xl font-bold tracking-tight">Cloud instances</h1><p className="mt-2 text-slate-400">Launch and access isolated SSH containers.</p></div>
-          <LaunchInstanceDialog onCreated={refresh} />
-        </header>
-        <AiOperationsAssistant onCompleted={refresh} />
-        {query.isLoading ? <p className="text-slate-400">Loading instances…</p> : query.error ? <p className="text-red-300">{query.error.message}</p> : <InstanceTable instances={query.data ?? []} busyId={busyId} onAction={(id, verb) => { setBusyId(id); action.mutate({ id, action: verb }); }} onDelete={(id) => { if (window.confirm('Delete this instance permanently?')) { setBusyId(id); remove.mutate(id); } }} onTerminal={setTerminalInstance} />}
-      </div>
-      <TerminalDialog instance={terminalInstance} onClose={() => setTerminalInstance(null)} />
-    </main>
+    <AppShell 
+      userEmail={meQuery.data.email}
+      onLogout={() => logoutMutation.mutate()}
+      instances={instancesQuery.data ?? []}
+      isLoading={instancesQuery.isLoading}
+      error={instancesQuery.error}
+      refreshInstances={refreshInstances}
+      removeMutation={removeMutation}
+      actionMutation={actionMutation}
+      busyId={busyId}
+      setBusyId={setBusyId}
+    />
   );
 }

@@ -17,4 +17,8 @@ const schema = z.object({
 });
 
 const values = schema.parse(process.env);
-export const config = { ...values, DEMO_AUTH: values.DEMO_AUTH === 'true' };
+export const config = { 
+  ...values, 
+  DEMO_AUTH: values.DEMO_AUTH === 'true',
+  JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-in-production'
+};

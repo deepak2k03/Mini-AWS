@@ -1,12 +1,18 @@
 import { ZodError } from 'zod';
+import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 
 export function requireAuth(req, res, next) {
-  // Development-only identity. Replace with verified JWT/session claims in production.
-  const userId = config.DEMO_AUTH ? (req.header('x-user-id') || 'local-user') : null;
-  if (!userId) return res.status(401).json({ message: 'Authentication required' });
-  req.auth = { userId };
-  next();
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ message: 'Authentication required' });
+
+  try {
+    const payload = jwt.verify(token, config.JWT_SECRET);
+    req.auth = { userId: payload.userId };
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
 }
 
 export function notFound(_req, res) {

@@ -5,6 +5,7 @@ import { Instance } from './models/Instance.js';
 import { internalSshCredentials } from './services/networkingService.js';
 import { config } from './config.js';
 import { URL } from 'node:url';
+import jwt from 'jsonwebtoken';
 
 export function setupTerminal(server) {
   const wss = new WebSocketServer({ noServer: true });
@@ -18,12 +19,20 @@ export function setupTerminal(server) {
         return; // Don't destroy the socket, just return
       }
 
-      // Basic auth verification (matching requireAuth middleware)
-      const userId = config.DEMO_AUTH ? (request.headers['x-user-id'] || 'local-user') : null;
-      if (!userId) {
-        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-        socket.destroy();
-        return;
+      const cookieHeader = request.headers.cookie || '';
+      const cookies = Object.fromEntries(cookieHeader.split('; ').map(c => c.split('=')));
+      const token = cookies.token;
+      
+      if (!token) {
+        return socket.destroy();
+      }
+      
+      let userId;
+      try {
+        const payload = jwt.verify(token, config.JWT_SECRET);
+        userId = payload.userId;
+      } catch (err) {
+        return socket.destroy();
       }
 
       wss.handleUpgrade(request, socket, head, (ws) => {

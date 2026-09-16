@@ -19,8 +19,13 @@ export type AiProposal = {
   instance: { id: string; name: string; state: InstanceState } | null;
 };
 
+export interface User {
+  id: string;
+  email: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/instances${path}`, {
+  const response = await fetch(`/api${path}`, {
     ...init,
     headers: { ...(init?.body ? { 'content-type': 'application/json' } : {}), ...init?.headers },
     credentials: 'include'
@@ -32,20 +37,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 
-export const instancesApi = {
-  list: () => request<Instance[]>(''),
-  create: (values: { name: string; publicKey: string }) => request<Instance>('', { method: 'POST', body: JSON.stringify(values) }),
-  action: (id: string, action: 'start' | 'stop' | 'restart') => request<Instance>(`/${id}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
-  remove: (id: string) => request<void>(`/${id}`, { method: 'DELETE' })
+export const api = {
+  // Auth
+  login: (data: any) => request<User>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data: any) => request<User>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  me: () => request<User>('/auth/me', { method: 'GET' })
 };
 
-async function aiRequest<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`/api/ai/operations${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
-  if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(error.message ?? 'The AI request failed'); }
-  return response.status === 204 ? undefined as T : response.json() as Promise<T>;
-}
+export const instancesApi = {
+  list: () => request<Instance[]>('/instances'),
+  create: (values: { name: string; publicKey: string }) => request<Instance>('/instances', { method: 'POST', body: JSON.stringify(values) }),
+  action: (id: string, action: 'start' | 'stop' | 'restart') => request<Instance>(`/instances/${id}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
+  remove: (id: string) => request<void>(`/instances/${id}`, { method: 'DELETE' })
+};
 
 export const aiOperationsApi = {
-  interpret: (message: string) => aiRequest<AiProposal>('/interpret', { message }),
-  execute: (command: { operation: 'create'; name: string; publicKey: string } | { operation: 'start' | 'stop' | 'delete'; instanceId: string }) => aiRequest<Instance | void>('/execute', command)
+  interpret: (message: string) => request<AiProposal>('/ai/operations/interpret', { method: 'POST', body: JSON.stringify({ message }) }),
+  execute: (command: { operation: 'create'; name: string; publicKey: string } | { operation: 'start' | 'stop' | 'delete'; instanceId: string }) => request<Instance | void>('/ai/operations/execute', { method: 'POST', body: JSON.stringify(command) })
 };
