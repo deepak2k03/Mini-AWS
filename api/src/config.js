@@ -13,7 +13,7 @@ const schema = z.object({
   DEMO_AUTH: z.enum(['true', 'false']).default('true'),
   // An empty value in .env means the optional AI feature is not configured yet.
   GEMINI_API_KEY: z.preprocess(value => typeof value === 'string' && !value.trim() ? undefined : value, z.string().trim().min(1).optional()),
-  GEMINI_MODEL: z.string().trim().min(1).default('gemini-3.6-flash')
+  GEMINI_MODEL: z.string().trim().min(1).default('gemini-1.5-flash')
 });
 
 const values = schema.parse(process.env);

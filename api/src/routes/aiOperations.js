@@ -3,11 +3,23 @@ import { z } from 'zod';
 import { Instance } from '../models/Instance.js';
 import { createInstance, deleteInstance, performAction } from '../services/instanceService.js';
 import { interpretOperation } from '../services/geminiService.js';
-
-const publicKey = z.string().trim().min(40).max(16384).regex(/^(ssh-ed25519|ecdsa-sha2-nistp(256|384|521)|ssh-rsa)\s+\S+/, 'Enter a valid SSH public key');
+import { resolveOsConfig } from '../lib/osRegistry.js';
+import { SSHKey } from '../models/SSHKey.js';
 const interpretSchema = z.object({ message: z.string().trim().min(1).max(2000) });
 const executeSchema = z.discriminatedUnion('operation', [
-  z.object({ operation: z.literal('create'), name: z.string().trim().min(1).max(64), publicKey }),
+  z.object({ 
+    operation: z.literal('create'), 
+    name: z.string().trim().min(1).max(64), 
+    sshKeyName: z.string().max(64).optional(),
+    os: z.object({
+      type: z.literal('linux'),
+      distribution: z.string(),
+      version: z.string()
+    }).optional().refine((data) => {
+      if (!data) return true;
+      return resolveOsConfig(data) !== null;
+    }, { message: 'Unsupported or invalid Operating System selection' })
+  }),
   z.object({ operation: z.literal('start'), instanceId: z.string().min(1) }),
   z.object({ operation: z.literal('stop'), instanceId: z.string().min(1) }),
   z.object({ operation: z.literal('delete'), instanceId: z.string().min(1) })
@@ -31,7 +43,23 @@ aiOperationsRouter.post('/interpret', async (req, res, next) => {
 aiOperationsRouter.post('/execute', async (req, res, next) => {
   try {
     const command = executeSchema.parse(req.body);
-    if (command.operation === 'create') return res.status(201).json(await createInstance({ ownerId: req.auth.userId, name: command.name, publicKey: command.publicKey }));
+    if (command.operation === 'create') {
+      let key;
+      if (command.sshKeyName) {
+        key = await SSHKey.findOne({ ownerId: req.auth.userId, name: command.sshKeyName });
+      } else {
+        key = await SSHKey.findOne({ ownerId: req.auth.userId, isDefault: true });
+        if (!key) {
+          key = await SSHKey.findOne({ ownerId: req.auth.userId }).sort({ createdAt: 1 });
+        }
+      }
+
+      if (!key) {
+        return res.status(400).json({ code: 'SSH_KEY_REQUIRED', message: 'No SSH key configured. Please add an SSH public key to create an instance.' });
+      }
+
+      return res.status(201).json(await createInstance({ ownerId: req.auth.userId, name: command.name, publicKey: key.publicKey, sshKeyId: key._id, os: command.os }));
+    }
     const row = await Instance.findOne({ _id: command.instanceId, ownerId: req.auth.userId }).select('+keyFile');
     if (!row || row.state === 'deleted') return res.status(404).json({ message: 'Instance not found' });
     if (command.operation === 'delete') { await deleteInstance(row); return res.sendStatus(204); }

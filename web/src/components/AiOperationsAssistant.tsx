@@ -7,18 +7,17 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 
 const labels = { create: 'Create instance', start: 'Start instance', stop: 'Stop instance', delete: 'Delete instance', none: 'No supported operation' };
 
-export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void }) {
+export function AiOperationsAssistant({ onCompleted, navigateToSettings }: { onCompleted: () => void, navigateToSettings?: () => void }) {
   const [message, setMessage] = useState('');
   const [proposal, setProposal] = useState<AiProposal>();
   const [name, setName] = useState('');
-  const [publicKey, setPublicKey] = useState('');
+
   
   const interpret = useMutation({ 
     mutationFn: aiOperationsApi.interpret, 
     onSuccess: value => { 
       setProposal(value); 
       setName(value.instanceName || ''); 
-      setPublicKey(value.publicKey || ''); 
     } 
   });
   
@@ -26,12 +25,12 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
     mutationFn: () => {
       if (!proposal) throw new Error('Ask the assistant first');
       return proposal.operation === 'create'
-        ? aiOperationsApi.execute({ operation: 'create', name, publicKey })
+        ? aiOperationsApi.execute({ operation: 'create', name, sshKeyName: proposal.sshKeyName, os: proposal.os })
         : proposal.instance 
           ? aiOperationsApi.execute({ operation: proposal.operation as 'start' | 'stop' | 'delete', instanceId: proposal.instance.id }) 
           : Promise.reject(new Error('Choose a valid instance'));
     },
-    onSuccess: () => { setMessage(''); setProposal(undefined); setName(''); setPublicKey(''); onCompleted(); }
+    onSuccess: () => { setMessage(''); setProposal(undefined); setName(''); onCompleted(); }
   });
 
   const handleSuggestedPrompt = (prompt: string) => {
@@ -63,7 +62,7 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
             onChange={event => setMessage(event.target.value)} 
             maxLength={2000} 
             required 
-            placeholder="e.g. 'Start the development server'" 
+            placeholder="e.g. 'Create an Ubuntu server named dev-box'" 
             aria-label="AI operation request" 
           />
           <div className="absolute right-1">
@@ -75,14 +74,14 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
 
         {!proposal && (
           <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => handleSuggestedPrompt("Create an Ubuntu server named dev-box")} className="inline-flex items-center gap-1.5 rounded-full border border-console-border bg-console-elevated px-3 py-1 text-[11px] font-medium text-console-secondary hover:bg-console-hover hover:text-console-text transition-colors">
+              <Plus className="h-3 w-3" /> Create Ubuntu server
+            </button>
             <button type="button" onClick={() => handleSuggestedPrompt("Start development-box")} className="inline-flex items-center gap-1.5 rounded-full border border-console-border bg-console-elevated px-3 py-1 text-[11px] font-medium text-console-secondary hover:bg-console-hover hover:text-console-text transition-colors">
               <Play className="h-3 w-3" /> Start development-box
             </button>
             <button type="button" onClick={() => handleSuggestedPrompt("Stop all running instances")} className="inline-flex items-center gap-1.5 rounded-full border border-console-border bg-console-elevated px-3 py-1 text-[11px] font-medium text-console-secondary hover:bg-console-hover hover:text-console-text transition-colors">
               <Square className="h-3 w-3" /> Stop all running instances
-            </button>
-            <button type="button" onClick={() => handleSuggestedPrompt("Delete the old staging server")} className="inline-flex items-center gap-1.5 rounded-full border border-console-border bg-console-elevated px-3 py-1 text-[11px] font-medium text-console-secondary hover:bg-console-hover hover:text-console-text transition-colors">
-              <Trash2 className="h-3 w-3" /> Delete staging server
             </button>
           </div>
         )}
@@ -115,7 +114,14 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-console-secondary">Target</p>
                     {proposal.operation === 'create' ? (
-                       <p className="mt-1 font-mono text-[13px] text-console-text">{name || 'New Instance'}</p>
+                       <div>
+                         <p className="mt-1 font-mono text-[13px] text-console-text">{name || 'New Instance'}</p>
+                         {proposal.os && (
+                           <p className="mt-0.5 text-[11px] text-console-secondary capitalize">
+                             {proposal.os.distribution} {proposal.os.version}
+                           </p>
+                         )}
+                       </div>
                     ) : proposal.instance ? (
                       <div>
                         <p className="mt-1 font-mono text-[13px] text-console-text">{proposal.instance.name}</p>
@@ -137,10 +143,6 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
                       <label className="text-[12px] font-medium text-console-text">Instance Name</label>
                       <input className="mt-1.5 w-full rounded border border-console-border bg-console-elevated px-3 py-2 text-[13px] text-console-text focus:border-console-ai focus:outline-none focus:ring-1 focus:ring-console-ai transition-colors" value={name} onChange={event => setName(event.target.value)} maxLength={64} required />
                     </div>
-                    <div>
-                      <label className="text-[12px] font-medium text-console-text">SSH Public Key</label>
-                      <textarea className="mt-1.5 w-full rounded border border-console-border bg-console-elevated px-3 py-2 font-mono text-[12px] text-console-technical focus:border-console-ai focus:outline-none focus:ring-1 focus:ring-console-ai transition-colors" value={publicKey} onChange={event => setPublicKey(event.target.value)} rows={3} required placeholder="ssh-ed25519 AAAA..." />
-                    </div>
                   </div>
                 )}
               </div>
@@ -151,7 +153,7 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
                   <Button 
                     variant={proposal.operation === 'delete' ? 'danger' : 'primary'} 
                     onClick={() => execute.mutate()} 
-                    disabled={execute.isPending || (proposal.operation === 'create' && (!name.trim() || !publicKey.trim()))}
+                    disabled={execute.isPending || (proposal.operation === 'create' && (!name.trim()))}
                     className={`h-8 text-[12px] ${proposal.operation === 'delete' ? '' : 'border-console-ai bg-console-ai text-console-bg hover:bg-console-ai/90 hover:border-transparent'}`}
                   >
                     {execute.isPending ? 'Executing...' : `Confirm Operation`}
@@ -159,7 +161,19 @@ export function AiOperationsAssistant({ onCompleted }: { onCompleted: () => void
                 </div>
               )}
             </div>
-            {execute.error && <p className="mt-3 text-[13px] text-console-error">{execute.error.message}</p>}
+            {execute.error && (
+              execute.error.message.includes('SSH_KEY_REQUIRED') || (execute.error as any).code === 'SSH_KEY_REQUIRED' ? (
+                <div className="mt-4 p-5 rounded border border-console-ai/20 bg-console-elevated">
+                  <h3 className="text-[14px] font-medium text-console-text mb-2">SSH Key Setup Required</h3>
+                  <p className="text-[13px] text-console-secondary mb-4">
+                    Mini-AWS needs an SSH public key to securely access this instance. You only need to configure this once.
+                  </p>
+                  <Button variant="primary" onClick={navigateToSettings}>Add SSH Key</Button>
+                </div>
+              ) : (
+                <p className="mt-3 text-[13px] text-console-error">{execute.error.message}</p>
+              )
+            )}
           </div>
         )}
       </CardContent>

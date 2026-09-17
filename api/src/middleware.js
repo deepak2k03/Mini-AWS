@@ -23,5 +23,5 @@ export function errorHandler(error, _req, res, _next) {
   if (error instanceof ZodError) return res.status(400).json({ message: 'Invalid request', errors: error.flatten() });
   const status = error.statusCode || 500;
   if (status >= 500) console.error(error);
-  res.status(status).json({ message: status >= 500 ? 'Internal server error' : error.message });
+  res.status(status).json({ message: error.message });
 }

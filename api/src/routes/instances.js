@@ -2,11 +2,30 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Instance } from '../models/Instance.js';
 import { createInstance, deleteInstance, performAction } from '../services/instanceService.js';
+import { resolveOsConfig } from '../lib/osRegistry.js';
+
+const osSchema = z.object({
+  type: z.literal('linux'),
+  distribution: z.string().min(1),
+  version: z.string().min(1)
+}).optional(); // optional for backwards compatibility, though frontend will always send it now
 
 const launchSchema = z.object({
   name: z.string().trim().min(1).max(64),
-  publicKey: z.string().trim().min(40).max(16384).regex(/^(ssh-ed25519|ecdsa-sha2-nistp(256|384|521)|ssh-rsa)\s+\S+/, 'Enter a valid SSH public key')
+  sshKeyId: z.string().trim().min(1),
+  os: osSchema
+}).superRefine((data, ctx) => {
+  if (data.os) {
+    const resolved = resolveOsConfig(data.os);
+    if (!resolved) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Unsupported or invalid Operating System selection'
+      });
+    }
+  }
 });
+
 const actionSchema = z.object({ action: z.enum(['start', 'stop', 'restart']) });
 
 export const instancesRouter = Router();

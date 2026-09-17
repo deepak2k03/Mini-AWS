@@ -4,9 +4,28 @@ import { Topbar } from './Topbar';
 import { Overview } from '../../views/Overview';
 import { InstancesView } from '../../views/InstancesView';
 import { NetworkView } from '../../views/NetworkView';
+import { SettingsView } from '../../views/SettingsView';
 import { AiOperationsAssistant } from '../AiOperationsAssistant';
 import { TerminalDialog } from '../TerminalDialog';
 import type { Instance } from '../../api';
+import React from 'react';
+
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {error: any}> {
+  constructor(props: any) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error: any) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-10 bg-red-900 text-white rounded">
+          <h2 className="text-xl font-bold mb-4">React Error</h2>
+          <pre className="whitespace-pre-wrap">{this.state.error.toString()}</pre>
+          <pre className="whitespace-pre-wrap mt-4 text-xs opacity-70">{this.state.error.stack}</pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface AppShellProps {
   onLogout: () => void;
@@ -32,7 +51,8 @@ export function AppShell({
     overview: 'Overview',
     instances: 'Compute / Instances',
     network: 'Virtual Private Cloud',
-    ai: 'AI Operations'
+    ai: 'AI Operations',
+    settings: 'Settings'
   };
 
   return (
@@ -57,16 +77,19 @@ export function AppShell({
             )}
             
             {currentView === 'instances' && (
-              <InstancesView 
-                instances={instances}
-                isLoading={isLoading}
-                error={error}
-                busyId={busyId}
-                onAction={(id, verb) => { setBusyId(id); actionMutation.mutate({ id, action: verb }); }}
-                onDelete={(id) => { if (window.confirm('Delete this instance permanently?\nThis will remove the Docker container.')) { setBusyId(id); removeMutation.mutate(id); } }}
-                onTerminal={setTerminalInstance}
-                onCreated={refreshInstances}
-              />
+              <ErrorBoundary>
+                <InstancesView 
+                  instances={instances}
+                  isLoading={isLoading}
+                  error={error}
+                  busyId={busyId}
+                  onAction={(id, verb) => { setBusyId(id); actionMutation.mutate({ id, action: verb }); }}
+                  onDelete={(id) => { if (window.confirm('Delete this instance permanently?\nThis will remove the Docker container.')) { setBusyId(id); removeMutation.mutate(id); } }}
+                  onTerminal={setTerminalInstance}
+                  onCreated={refreshInstances}
+                  onNavigateToSettings={() => setCurrentView('settings')}
+                />
+              </ErrorBoundary>
             )}
 
             {currentView === 'network' && (
@@ -75,8 +98,12 @@ export function AppShell({
 
             {currentView === 'ai' && (
               <div className="max-w-3xl">
-                <AiOperationsAssistant onCompleted={refreshInstances} />
+                <AiOperationsAssistant onCompleted={refreshInstances} navigateToSettings={() => setCurrentView('settings')} />
               </div>
+            )}
+
+            {currentView === 'settings' && (
+              <SettingsView />
             )}
           </div>
         </main>

@@ -2,29 +2,19 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import { docker } from '../lib/docker.js';
 import { Instance } from '../models/Instance.js';
-import { assertAvailableInstanceName, connectContainer, ensurePrivateNetwork, internalSshCredentials, privateNetworkDetails } from './networkingService.js';
+import { assertAvailableInstanceName, ensurePrivateNetwork, internalSshCredentials } from './networkingService.js';
+import { resolveOsConfig } from '../lib/osRegistry.js';
+import { DockerProvider } from './providers/DockerProvider.js';
 
-const label = 'com.miniaws.managed';
-const PORT_ALLOCATION_TIMEOUT_MS = 5_000;
-const PORT_ALLOCATION_POLL_MS = 100;
+const providers = {
+  docker: new DockerProvider()
+};
 
-function wait(milliseconds) {
-  return new Promise(resolve => setTimeout(resolve, milliseconds));
-}
-
-async function readPublishedSshPort(container) {
-  const deadline = Date.now() + PORT_ALLOCATION_TIMEOUT_MS;
-
-  do {
-    const details = await container.inspect();
-    const binding = details.NetworkSettings.Ports['22/tcp']?.[0];
-    if (binding?.HostPort) return Number(binding.HostPort);
-    await wait(PORT_ALLOCATION_POLL_MS);
-  } while (Date.now() < deadline);
-
-  throw new Error('Docker did not allocate an SSH port before the timeout');
+function getProvider(providerName) {
+  const provider = providers[providerName];
+  if (!provider) throw new Error(`Provider '${providerName}' is not implemented.`);
+  return provider;
 }
 
 async function writeKeyFile(publicKey) {
@@ -35,87 +25,73 @@ async function writeKeyFile(publicKey) {
   return file;
 }
 
-function hostConfig(keyFile, internalSsh) {
-  return {
-    ReadonlyRootfs: true,
-    // The image's tightly scoped setuid SSH launcher needs this capability to read
-    // the root-owned internal key; it accepts only `ssh instance@<Docker-alias>`.
-    SecurityOpt: [],
-    CapDrop: ['ALL'],
-    // sshd must bind port 22 and change from root to the login user. Nothing else is retained.
-    // FOWNER is required by `install` after it chowns the authorized-keys file.
-    // SYS_CHROOT is required by OpenSSH's pre-auth privilege-separation sandbox.
-    CapAdd: ['NET_BIND_SERVICE', 'SETUID', 'SETGID', 'CHOWN', 'FOWNER', 'SYS_CHROOT'],
-    PidsLimit: 128,
-    Memory: 512 * 1024 * 1024,
-    NanoCpus: 500_000_000,
-    NetworkMode: config.INSTANCE_NETWORK_NAME,
-    Binds: [
-      `${keyFile}:/run/secrets/authorized_keys:ro`,
-      `${internalSsh.publicKey}:/run/secrets/internal_network_authorized_key:ro`,
-      `${internalSsh.privateKey}:/run/secrets/internal_ssh_key:ro`
-    ],
-    // Per-container SSH state and a disposable writable home are mounted over the read-only image.
-    Tmpfs: {
-      '/run': 'rw,nosuid,nodev,noexec,size=1m',
-      '/etc/ssh': 'rw,nosuid,nodev,noexec,size=1m',
-      '/home/instance': 'rw,nosuid,nodev,noexec,size=256m,uid=100,gid=101,mode=700'
-    },
-    // Empty HostPort asks Docker for an atomically allocated available port.
-    PortBindings: { '22/tcp': [{ HostIp: '0.0.0.0', HostPort: '' }] }
-  };
-}
-
-export async function createInstance({ ownerId, name, publicKey }) {
+export async function createInstance({ ownerId, name, publicKey, sshKeyId, os }) {
   await assertAvailableInstanceName(ownerId, name);
   await ensurePrivateNetwork();
+  
+  // Resolve OS config. Fallback to default alpine image if not provided for legacy compatibility
+  let osConfig = resolveOsConfig(os);
+  if (!osConfig) {
+    if (!os) {
+      // Legacy creation fallback
+      osConfig = { image: config.INSTANCE_IMAGE, provider: 'docker' };
+    } else {
+      throw Object.assign(new Error('Invalid or unsupported Operating System configuration'), { statusCode: 400 });
+    }
+  }
+
   const internalSsh = await internalSshCredentials();
-  const row = await Instance.create({ ownerId, name, hostname: name, networkName: config.INSTANCE_NETWORK_NAME, image: config.INSTANCE_IMAGE, state: 'creating', ssh: { host: config.SSH_PUBLIC_HOST, username: 'instance' } });
-  let container;
+  
+  const instanceData = {
+    ownerId, 
+    name, 
+    hostname: name, 
+    networkName: config.INSTANCE_NETWORK_NAME, 
+    image: osConfig.image, 
+    os,
+    provider: osConfig.provider,
+    sshKeyId,
+    state: 'creating', 
+    ssh: { host: config.SSH_PUBLIC_HOST, username: 'instance' }
+  };
+  
+  const row = await Instance.create(instanceData);
+  let keyFile;
+
   try {
-    const keyFile = await writeKeyFile(publicKey);
+    keyFile = await writeKeyFile(publicKey);
     await row.updateOne({ keyFile });
-    container = await docker.createContainer({
-      Image: config.INSTANCE_IMAGE,
-      name: `mini-aws-${row._id}`,
-      Labels: { [label]: 'true', 'com.miniaws.instance-id': String(row._id) },
-      ExposedPorts: { '22/tcp': {} },
-      Hostname: name,
-      NetworkingConfig: { EndpointsConfig: { [config.INSTANCE_NETWORK_NAME]: { Aliases: [name] } } },
-      HostConfig: hostConfig(keyFile, internalSsh)
-    });
-    await row.updateOne({ dockerId: container.id });
-    await container.start();
-    const hostPort = await readPublishedSshPort(container);
-    const details = privateNetworkDetails(await container.inspect());
-    return await Instance.findByIdAndUpdate(row._id, { state: 'running', 'ssh.hostPort': hostPort, ...details, lastError: null }, { new: true });
+    
+    const provider = getProvider(osConfig.provider);
+    const updateFields = await provider.create(row, osConfig, keyFile, internalSsh);
+    
+    // Some fields like dockerId need to be saved immediately before other fields, in case of partial error
+    if (updateFields.dockerId) {
+      await row.updateOne({ dockerId: updateFields.dockerId });
+    }
+
+    return await Instance.findByIdAndUpdate(row._id, updateFields, { new: true });
   } catch (error) {
-    if (container) await container.remove({ force: true }).catch(() => undefined);
+    if (row.provider) {
+      try {
+        const provider = getProvider(row.provider);
+        await provider.delete(row);
+      } catch (cleanupError) {
+        console.error('Failed to cleanup instance after creation failure:', cleanupError);
+      }
+    }
     await Instance.findByIdAndUpdate(row._id, { state: 'error', lastError: error.message });
     throw error;
   }
 }
 
 export async function performAction(row, action) {
-  if (!row.dockerId) throw Object.assign(new Error('Container is unavailable'), { statusCode: 409 });
-  const container = docker.getContainer(row.dockerId);
   try {
-    // This also makes pre-network instances join when they are next started/restarted.
-    await connectContainer(container, row.hostname || row.name);
-    if (action === 'start') await container.start();
-    else if (action === 'stop') await container.stop({ t: 15 });
-    else await container.restart({ t: 15 });
-    const info = await container.inspect();
-    const details = privateNetworkDetails(info);
-    return await Instance.findByIdAndUpdate(row._id, { state: info.State.Running ? 'running' : 'stopped', ...details, hostname: row.hostname || row.name, networkName: config.INSTANCE_NETWORK_NAME, lastError: null }, { new: true });
+    const providerName = row.provider || 'docker'; // Fallback to docker for legacy
+    const provider = getProvider(providerName);
+    const updateFields = await provider.performAction(row, action);
+    return await Instance.findByIdAndUpdate(row._id, updateFields, { new: true });
   } catch (error) {
-    if (error.statusCode === 404) {
-      return await Instance.findByIdAndUpdate(row._id, { state: 'error', lastError: 'Container no longer exists in Docker.' }, { new: true });
-    }
-    // 304 means container is already stopped
-    if (action === 'stop' && error.statusCode === 304) {
-      return await Instance.findByIdAndUpdate(row._id, { state: 'stopped', lastError: null }, { new: true });
-    }
     throw error;
   }
 }
@@ -123,9 +99,11 @@ export async function performAction(row, action) {
 export async function deleteInstance(row) {
   await row.updateOne({ state: 'deleting' });
   try {
-    if (row.dockerId) await docker.getContainer(row.dockerId).remove({ force: true, v: true }).catch(error => {
-      if (error.statusCode !== 404) throw error;
-    });
+    const providerName = row.provider || 'docker';
+    const provider = getProvider(providerName);
+    
+    await provider.delete(row);
+    
     if (row.keyFile) await fs.rm(row.keyFile, { force: true });
     return Instance.findByIdAndUpdate(row._id, { state: 'deleted', deletedAt: new Date(), lastError: null }, { new: true });
   } catch (error) {

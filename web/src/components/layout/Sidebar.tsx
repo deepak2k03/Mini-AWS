@@ -1,7 +1,7 @@
 import { LayoutDashboard, Server, Network, Bot, Settings, BookOpen, Cloud, LogOut } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-export type ViewType = 'overview' | 'instances' | 'network' | 'ai';
+export type ViewType = 'overview' | 'instances' | 'network' | 'ai' | 'settings';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -14,6 +14,7 @@ export function Sidebar({ currentView, onChangeView }: SidebarProps) {
     { id: 'instances', label: 'Instances', icon: Server },
     { id: 'network', label: 'Network', icon: Network },
     { id: 'ai', label: 'AI Operations', icon: Bot },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
@@ -50,10 +51,6 @@ export function Sidebar({ currentView, onChangeView }: SidebarProps) {
         <button className="flex w-full items-center gap-3 rounded px-3 py-2 text-[14px] font-medium text-console-secondary transition-colors hover:text-console-text">
           <BookOpen className="h-4 w-4" />
           Documentation
-        </button>
-        <button className="flex w-full items-center gap-3 rounded px-3 py-2 text-[14px] font-medium text-console-secondary transition-colors hover:text-console-text">
-          <Settings className="h-4 w-4" />
-          Settings
         </button>
       </div>
       

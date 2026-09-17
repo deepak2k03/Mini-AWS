@@ -15,6 +15,7 @@ interface InstancesViewProps {
   onDelete: (id: string) => void;
   onTerminal: (instance: Instance) => void;
   onCreated: () => void;
+  onNavigateToSettings?: () => void;
 }
 
 const statusConfig: Record<Instance['state'], { color: 'success' | 'default' | 'warning' | 'error' | 'outline', label: string }> = { 
@@ -25,12 +26,12 @@ const statusConfig: Record<Instance['state'], { color: 'success' | 'default' | '
   error: { color: 'error', label: 'Error' } 
 };
 
-export function InstancesView({ instances, isLoading, error, busyId, onAction, onDelete, onTerminal, onCreated }: InstancesViewProps) {
+export function InstancesView({ instances, isLoading, error, busyId, onAction, onDelete, onTerminal, onCreated, onNavigateToSettings }: InstancesViewProps) {
   const [search, setSearch] = useState('');
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string>();
 
-  const filteredInstances = instances.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+  const filteredInstances = instances.filter(i => (i.name || '').toLowerCase().includes(search.toLowerCase()));
   const selectedInstance = instances.find(i => i._id === selectedInstanceId);
 
   const handleCopy = (text: string, id: string) => {
@@ -59,7 +60,9 @@ export function InstancesView({ instances, isLoading, error, busyId, onAction, o
           <h2 className="text-[20px] font-bold tracking-tight text-console-text">Instances</h2>
           <p className="mt-1 text-[13px] text-console-secondary">Manage your SSH-enabled cloud instances.</p>
         </div>
-        <LaunchInstanceDialog onCreated={onCreated} />
+        <div>
+          <LaunchInstanceDialog onCreated={onCreated} onNavigateToSettings={onNavigateToSettings} />
+        </div>
       </div>
 
       <div className="flex items-center gap-3 pb-2">
@@ -98,7 +101,7 @@ export function InstancesView({ instances, isLoading, error, busyId, onAction, o
           </p>
           {!search && (
             <div className="mt-6">
-              <LaunchInstanceDialog onCreated={onCreated} />
+              <LaunchInstanceDialog onCreated={onCreated} onNavigateToSettings={onNavigateToSettings} />
             </div>
           )}
         </div>
@@ -117,16 +120,23 @@ export function InstancesView({ instances, isLoading, error, busyId, onAction, o
             <tbody className="divide-y divide-console-border">
               {filteredInstances.map(instance => {
                 const isBusy = busyId === instance._id;
-                const sshCmd = instance.ssh.hostPort ? `ssh ${instance.ssh.username}@${instance.ssh.host} -p ${instance.ssh.hostPort}` : '';
+                const sshCmd = instance.ssh?.hostPort ? `ssh ${instance.ssh.username}@${instance.ssh.host} -p ${instance.ssh.hostPort}` : '';
                 const conf = statusConfig[instance.state] || statusConfig.error;
                 
                 return (
                   <tr key={instance._id} className="transition-colors hover:bg-console-hover group">
                     <td className="px-4 py-3">
                       <div className="flex flex-col cursor-pointer" onClick={() => setSelectedInstanceId(instance._id)}>
-                        <p className="font-medium text-console-brand group-hover:text-console-brandHover transition-colors">{instance.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-console-brand group-hover:text-console-brandHover transition-colors">{instance.name}</p>
+                          {instance.os && (
+                            <span className="rounded bg-console-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase text-console-secondary capitalize">
+                              {instance.os.distribution} {instance.os.version}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-console-secondary truncate max-w-[200px]">
-                          Created {formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true })}
+                          Created {instance.createdAt ? formatDistanceToNow(new Date(instance.createdAt), { addSuffix: true }) : 'Unknown'}
                         </p>
                       </div>
                     </td>
@@ -238,12 +248,16 @@ function InstanceDetails({ instance, onBack, onAction, onDelete, onTerminal, isB
                 <code className="text-[12px] font-mono text-console-technical">{instance._id}</code>
               </div>
               <div>
-                <p className="text-[11px] text-console-secondary mb-1">Image</p>
-                <code className="text-[12px] font-mono text-console-technical">mini-aws/ssh-instance:latest</code>
+                <p className="text-[11px] text-console-secondary mb-1">Operating System</p>
+                {instance.os ? (
+                  <p className="text-[13px] text-console-text capitalize">{instance.os.distribution} {instance.os.version}</p>
+                ) : (
+                  <code className="text-[12px] font-mono text-console-technical">mini-aws/ssh-instance:latest</code>
+                )}
               </div>
               <div>
                 <p className="text-[11px] text-console-secondary mb-1">Created</p>
-                <p className="text-[13px] text-console-text">{format(new Date(instance.createdAt), 'MMM d, yyyy HH:mm:ss')}</p>
+                <p className="text-[13px] text-console-text">{instance.createdAt ? format(new Date(instance.createdAt), 'MMM d, yyyy HH:mm:ss') : 'Unknown'}</p>
               </div>
             </div>
           </div>

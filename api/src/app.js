@@ -9,6 +9,7 @@ import { errorHandler, notFound, requireAuth } from './middleware.js';
 import { instancesRouter } from './routes/instances.js';
 import { aiOperationsRouter } from './routes/aiOperations.js';
 import { authRouter } from './routes/auth.js';
+import { sshKeysRouter } from './routes/sshKeys.js';
 
 export const app = express();
 app.use(pinoHttp());
@@ -18,6 +19,7 @@ app.use(express.json({ limit: '20kb' }));
 app.use(cookieParser());
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
+app.use('/api/ssh-keys', rateLimit({ windowMs: 60_000, limit: 100 }), requireAuth, sshKeysRouter);
 app.use('/api/instances', rateLimit({ windowMs: 60_000, limit: 60 }), requireAuth, instancesRouter);
 app.use('/api/ai/operations', rateLimit({ windowMs: 60_000, limit: 20 }), requireAuth, aiOperationsRouter);
 app.use(notFound);
