@@ -2,11 +2,11 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends openssh-server tini iputils-ping build-essential vim nano \
- && groupadd -r instance \
- && useradd -r -m -d /home/instance -s /bin/bash -g instance instance \
- && passwd -u instance \
- && mkdir -p /run/sshd /home/instance/.ssh /usr/local/etc \
+ RUN apt-get update && apt-get install -y --no-install-recommends openssh-server tini iputils-ping build-essential vim nano \
+  && groupadd -r instance \
+  && useradd -r -m -d /home/instance -s /bin/bash -g instance instance \
+  && echo 'instance:MiniAwsInstance2026' | chpasswd \
+  && mkdir -p /run/sshd /home/instance/.ssh /usr/local/etc \
  && chown -R instance:instance /home/instance/.ssh \
  && chmod 700 /home/instance/.ssh \
  && printf '%s\n' \

@@ -5,7 +5,7 @@ import { createInstance, deleteInstance, performAction } from '../services/insta
 import { interpretOperation } from '../services/geminiService.js';
 import { resolveOsConfig } from '../lib/osRegistry.js';
 import { SSHKey } from '../models/SSHKey.js';
-const interpretSchema = z.object({ message: z.string().trim().min(1).max(2000) });
+const interpretSchema = z.object({ message: z.string().trim().min(1).max(2000), model: z.string().trim().max(64).optional() });
 const executeSchema = z.discriminatedUnion('operation', [
   z.object({ 
     operation: z.literal('create'), 
@@ -28,9 +28,9 @@ const executeSchema = z.discriminatedUnion('operation', [
 export const aiOperationsRouter = Router();
 aiOperationsRouter.post('/interpret', async (req, res, next) => {
   try {
-    const { message } = interpretSchema.parse(req.body);
+    const { message, model } = interpretSchema.parse(req.body);
     const instances = await Instance.find({ ownerId: req.auth.userId, state: { $ne: 'deleted' } }).select('name state').sort({ createdAt: -1 });
-    const proposal = await interpretOperation(message, instances);
+    const proposal = await interpretOperation(message, instances, model);
     const match = proposal.operation === 'create' || proposal.operation === 'none' ? null : instances.find(instance => instance.name.toLowerCase() === String(proposal.instanceName || '').toLowerCase());
     if (proposal.operation !== 'create' && proposal.operation !== 'none' && !match) {
       proposal.operation = 'none';

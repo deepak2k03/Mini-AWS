@@ -33,7 +33,7 @@ const operationSchema = z.object({
   message: z.string().min(1).max(500)
 });
 
-export async function interpretOperation(message, instances) {
+export async function interpretOperation(message, instances, modelName) {
   if (!config.GEMINI_API_KEY) throw Object.assign(new Error('AI Operations Assistant is not configured. Add GEMINI_API_KEY to api/.env.'), { statusCode: 503 });
 
   const instanceNames = instances.map(instance => instance.name).join(', ') || '(none)';
@@ -50,9 +50,10 @@ Do NOT ask the user for an SSH public key, IP address, Docker image, or network 
 If a name is missing for create, keep the operation create and ask for a name. 
 The user request is:\n${message}`;
 
+  const targetModel = modelName || config.GEMINI_MODEL;
   let response;
   try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.GEMINI_MODEL)}:generateContent`, {
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': config.GEMINI_API_KEY },
       body: JSON.stringify({

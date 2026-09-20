@@ -1,9 +1,9 @@
 FROM rockylinux:9
 
-RUN dnf install -y openssh-server tini iputils gcc vim nano \
+RUN dnf install -y epel-release && dnf update -y && dnf install -y openssh-server tini iputils gcc vim nano shadow-utils \
  && groupadd -r instance \
  && useradd -r -m -d /home/instance -s /bin/bash -g instance instance \
- && passwd -u instance \
+ && echo 'instance:MiniAwsInstance2026' | chpasswd \
  && mkdir -p /run/sshd /home/instance/.ssh /usr/local/etc \
  && chown -R instance:instance /home/instance/.ssh \
  && chmod 700 /home/instance/.ssh \

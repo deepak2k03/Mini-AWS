@@ -1,9 +1,9 @@
 FROM alpine:3.21
 
-RUN apk add --no-cache openssh-server tini iputils build-base vim nano \
- && addgroup -S instance \
- && adduser -S -D -h /home/instance -s /bin/ash -G instance instance \
- && passwd -u instance \
+RUN apk add --no-cache openssh-server tini iputils build-base vim nano bash shadow \
+ && groupadd -r instance \
+ && useradd -r -m -d /home/instance -s /bin/bash -g instance instance \
+ && echo 'instance:MiniAwsInstance2026' | chpasswd \
  && mkdir -p /run/sshd /home/instance/.ssh /usr/local/etc \
  && chown -R instance:instance /home/instance/.ssh \
  && chmod 700 /home/instance/.ssh \

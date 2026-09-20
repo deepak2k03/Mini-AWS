@@ -6,5 +6,7 @@ test -r /run/secrets/internal_network_authorized_key || { echo 'No internal netw
 test -r /run/secrets/internal_ssh_key || { echo 'No internal SSH credential mounted' >&2; exit 64; }
 install -o instance -g instance -m 600 "$key_file" /run/authorized_keys
 install -o instance -g instance -m 600 /run/secrets/internal_network_authorized_key /run/internal_network_authorized_keys
+chown instance:instance /home/instance
+mkdir -p /run/sshd
 ssh-keygen -A
 exec "$@"

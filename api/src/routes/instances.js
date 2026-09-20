@@ -33,7 +33,12 @@ instancesRouter.get('/', async (req, res, next) => {
   try { res.json(await Instance.find({ ownerId: req.auth.userId, state: { $ne: 'deleted' } }).sort({ createdAt: -1 })); } catch (error) { next(error); }
 });
 instancesRouter.post('/', async (req, res, next) => {
-  try { res.status(201).json(await createInstance({ ownerId: req.auth.userId, ...launchSchema.parse(req.body) })); } catch (error) { next(error); }
+  try { 
+    const data = launchSchema.parse(req.body);
+    const key = await import('../models/SSHKey.js').then(m => m.SSHKey.findOne({ ownerId: req.auth.userId, _id: data.sshKeyId }));
+    if (!key) return res.status(400).json({ message: 'Selected SSH Key not found' });
+    res.status(201).json(await createInstance({ ownerId: req.auth.userId, publicKey: key.publicKey, ...data })); 
+  } catch (error) { next(error); }
 });
 instancesRouter.post('/:id/actions', async (req, res, next) => {
   try {

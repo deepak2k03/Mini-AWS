@@ -29,7 +29,7 @@ function hostConfig(keyFile, internalSsh) {
     ReadonlyRootfs: true,
     SecurityOpt: [],
     CapDrop: ['ALL'],
-    CapAdd: ['NET_BIND_SERVICE', 'SETUID', 'SETGID', 'CHOWN', 'FOWNER', 'SYS_CHROOT'],
+    CapAdd: ['NET_BIND_SERVICE', 'SETUID', 'SETGID', 'CHOWN', 'FOWNER', 'SYS_CHROOT', 'AUDIT_WRITE'],
     PidsLimit: 128,
     Memory: 512 * 1024 * 1024,
     NanoCpus: 500_000_000,
@@ -42,15 +42,38 @@ function hostConfig(keyFile, internalSsh) {
     Tmpfs: {
       '/run': 'rw,nosuid,nodev,noexec,size=1m',
       '/etc/ssh': 'rw,nosuid,nodev,noexec,size=1m',
-      '/home/instance': 'rw,nosuid,nodev,noexec,size=256m,uid=100,gid=101,mode=700'
+      '/home/instance': 'rw,nosuid,nodev,noexec,size=256m,mode=700'
     },
     PortBindings: { '22/tcp': [{ HostIp: '0.0.0.0', HostPort: '' }] }
   };
 }
 
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import path from 'node:path';
+
+const execAsync = promisify(exec);
+
 export class DockerProvider extends InstanceProvider {
   async create(row, osConfig, keyFile, internalSsh) {
     const image = osConfig.image;
+    
+    // Lazy build the image if it doesn't exist
+    try {
+      await docker.getImage(image).inspect();
+    } catch (err) {
+      if (err.statusCode === 404 && row.os && row.os.distribution) {
+        console.log(`Image ${image} not found. Building it on the fly...`);
+        const cwd = path.resolve(process.cwd(), '../instance-image');
+        await execAsync(`docker build -t ${image} -f ${row.os.distribution}/Dockerfile .`, { cwd });
+        console.log(`Successfully built ${image}`);
+      } else if (err.statusCode === 404) {
+        throw new Error(`Docker image ${image} not found and cannot be built automatically.`);
+      } else {
+        throw err;
+      }
+    }
+
     const container = await docker.createContainer({
       Image: image,
       name: `mini-aws-${row._id}`,

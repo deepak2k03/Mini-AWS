@@ -11,26 +11,37 @@ export function AiOperationsAssistant({ onCompleted, navigateToSettings }: { onC
   const [message, setMessage] = useState('');
   const [proposal, setProposal] = useState<AiProposal>();
   const [name, setName] = useState('');
+  const [model, setModel] = useState('gemini-3.6-flash');
 
   
+  const execute = useMutation({
+    mutationFn: (override?: { p: AiProposal; n: string }) => {
+      const currentProposal = override ? override.p : proposal;
+      const currentName = override ? override.n : name;
+      
+      if (!currentProposal) throw new Error('Ask the assistant first');
+      return currentProposal.operation === 'create'
+        ? aiOperationsApi.execute({ operation: 'create', name: currentName, sshKeyName: currentProposal.sshKeyName, os: currentProposal.os })
+        : currentProposal.instance 
+          ? aiOperationsApi.execute({ operation: currentProposal.operation as 'start' | 'stop' | 'delete', instanceId: currentProposal.instance.id }) 
+          : Promise.reject(new Error('Choose a valid instance'));
+    },
+    onSuccess: () => { setMessage(''); setProposal(undefined); setName(''); onCompleted(); }
+  });
+
   const interpret = useMutation({ 
     mutationFn: aiOperationsApi.interpret, 
     onSuccess: value => { 
       setProposal(value); 
       setName(value.instanceName || ''); 
+      
+      // Auto-execute all operations
+      if (value.operation === 'create' && value.instanceName) {
+        execute.mutate({ p: value, n: value.instanceName });
+      } else if ((value.operation === 'start' || value.operation === 'stop' || value.operation === 'delete') && value.instance) {
+        execute.mutate({ p: value, n: '' });
+      }
     } 
-  });
-  
-  const execute = useMutation({
-    mutationFn: () => {
-      if (!proposal) throw new Error('Ask the assistant first');
-      return proposal.operation === 'create'
-        ? aiOperationsApi.execute({ operation: 'create', name, sshKeyName: proposal.sshKeyName, os: proposal.os })
-        : proposal.instance 
-          ? aiOperationsApi.execute({ operation: proposal.operation as 'start' | 'stop' | 'delete', instanceId: proposal.instance.id }) 
-          : Promise.reject(new Error('Choose a valid instance'));
-    },
-    onSuccess: () => { setMessage(''); setProposal(undefined); setName(''); onCompleted(); }
   });
 
   const handleSuggestedPrompt = (prompt: string) => {
@@ -51,10 +62,22 @@ export function AiOperationsAssistant({ onCompleted, navigateToSettings }: { onC
           </div>
         </div>
         <p className="mt-2 text-[13px] text-console-secondary">Manage your infrastructure using natural language. The AI will propose actions, but will never execute them without your explicit confirmation.</p>
+        
+        <div className="mt-4 flex items-center gap-2">
+          <label className="text-[11px] font-semibold uppercase tracking-wider text-console-secondary">Model</label>
+          <select 
+            value={model} 
+            onChange={e => setModel(e.target.value)}
+            className="rounded border border-console-border bg-console-bg py-1 pl-2 pr-6 text-[12px] text-console-text focus:border-console-ai focus:outline-none"
+          >
+            <option value="gemini-3.6-flash">Gemini 3.6 Flash (Fast, Free)</option>
+            <option value="gemini-3.6-pro">Gemini 3.6 Pro (Powerful)</option>
+          </select>
+        </div>
       </CardHeader>
       
       <CardContent>
-        <form className="relative flex items-center" onSubmit={event => { event.preventDefault(); setProposal(undefined); interpret.mutate(message); }}>
+        <form className="relative flex items-center" onSubmit={event => { event.preventDefault(); setProposal(undefined); interpret.mutate({ message, model }); }}>
           <Terminal className="absolute left-3 top-2.5 h-4 w-4 text-console-muted" />
           <input 
             className="w-full rounded border border-console-border bg-console-bg py-2 pl-9 pr-24 text-[13px] text-console-text placeholder:text-console-muted focus:border-console-ai focus:outline-none focus:ring-1 focus:ring-console-ai transition-colors" 
@@ -66,8 +89,8 @@ export function AiOperationsAssistant({ onCompleted, navigateToSettings }: { onC
             aria-label="AI operation request" 
           />
           <div className="absolute right-1">
-            <Button type="submit" size="sm" className="h-7 border-console-ai bg-console-ai text-console-bg hover:bg-console-ai/90" disabled={interpret.isPending}>
-              {interpret.isPending ? 'Interpreting...' : 'Interpret'}
+            <Button type="submit" size="sm" className="h-7 border-console-ai bg-console-ai text-console-bg hover:bg-console-ai/90" disabled={interpret.isPending || execute.isPending}>
+              {interpret.isPending || execute.isPending ? 'Processing...' : 'Interpret'}
             </Button>
           </div>
         </form>

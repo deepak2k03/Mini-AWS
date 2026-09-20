@@ -73,7 +73,7 @@ export const instancesApi = {
 };
 
 export const aiOperationsApi = {
-  interpret: (message: string) => request<AiProposal>('/ai/operations/interpret', { method: 'POST', body: JSON.stringify({ message }) }),
+  interpret: (data: { message: string; model: string }) => request<AiProposal>('/ai/operations/interpret', { method: 'POST', body: JSON.stringify(data) }),
   execute: (command: { operation: 'create'; name: string; sshKeyName?: string; os?: OperatingSystem } | { operation: 'start' | 'stop' | 'delete'; instanceId: string }) => request<Instance | void>('/ai/operations/execute', { method: 'POST', body: JSON.stringify(command) })
 };
 
